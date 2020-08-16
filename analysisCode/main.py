@@ -10,30 +10,30 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 
 print(demo_files)
 
-
+#example_number = int(input(".wav example number = "));
 example_number = 5
 path_name = demo_files[example_number-1]
 audio, Fs = librosa.load(path_name, sr=None)
-print("Openning " + path_name)
+print("Opening " + path_name)
 print("Fs: ", Fs)
 
 #------------------------------------------ WINDOWING ------------------------------------------
 # Bandwidth given by the user
 #f_low = int(input("lowest frequency = "));
 #f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
-f_low = 120;
+f_low = 100;
 
-#Number of harmonics
+#Number of harmonics (not useful at the moment)
 N_h = 20;
 
 #Window type
 Win_type = "hamming"
-#Smoothness factor
+#Smoothness factor (hop_ratio already defined above, do we need to keep L ? )
 L = 4;
 
 #Frequency separation
 f_low_2=f_low*(2**(1/12)); # f_low_2 is 1/2 tone above f_low
-d_fmin = 20 # to balance with the temporal resolution
+d_fmin = 20     # The frequency resolution is limited, to balance with the temporal resolution
 d_f = max(d_fmin, int(f_low_2 - f_low));
 
 #Window length
@@ -46,17 +46,18 @@ N_fft = max(2**math.ceil(math.log2(Win_length)),2**math.ceil(math.log2(Fs/(2*3))
 
 #Hop ratio
 Hop_ratio = 4;
+
 #Hop length
 Hop_length = int(Win_length / Hop_ratio);
 
 #Number of frames
-n_frames = math.floor((len(audio) - Win_length)/Hop_length) + 1;
+n_frames = math.floor((len(audio))/Hop_length) + 1;
 
 print("Peak resolution d_f = "+ str(d_f) + " Hz")
 print("N_fft = " + str(N_fft))
 print("Window length = " + str(Win_length))
 print("Hop length = " + str(Hop_length))
-print("n frames = " + str(math.floor((len(audio) - Win_length) / Hop_length) + 1))
+print("n frames = " + str(n_frames))
 print("Audio length = " + str(len(audio)))
 
 #------------------------------------------ STFT ------------------------------------------
@@ -73,7 +74,6 @@ X_db = librosa.amplitude_to_db(X, ref=np.max)
 
 # Frequency spectrogram
 
-
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
     plt.figure(figsize=(10, 4))
     librosa.display.specshow(X_db, y_axis='log', x_axis='time')
@@ -85,6 +85,8 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 #------------------------------------------ PEAK FINDING ------------------------------------------
 
+#peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
+#If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
 def peakFinding(xdB, mainPeak=False):
     n_frames = xdB.shape[1]
     peak_loc = np.zeros(n_frames)
@@ -102,18 +104,19 @@ def peakFinding(xdB, mainPeak=False):
 
     return peak_loc, peak_mag
 
-
+#Erase a trajectory of xdb by setting the frequency bin around the input trajectory to -80dB.
 def flattenMaxPeak(xdB, maxPeakLoc):
     n_frames = xdB.shape[1]
     for frameIndex in range(n_frames):
 
         minfreq = int(maxPeakLoc[frameIndex]) - int(maxPeakLoc[frameIndex] / 16)
         maxfreq = int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 16)
+
         for freqIndex in range(minfreq, maxfreq):
             xdB[freqIndex, frameIndex] = -80
     return xdB
 
-
+#Median filter on the input segment sig
 def movingMedian(sig, windowLength=5):
     sigSmooth = np.zeros(len(sig))
     for i in range(len(sig)):
@@ -130,6 +133,7 @@ X_db_actualStep = X_db.copy()
 
 numberOfPeaks = 5
 
+#for each trajectory : find the maximum trajectory, save it and erase it in xdb.
 for j in range(numberOfPeaks):
     if j == 0:
         Peak_loc, Peak_mag = peakFinding(X_db_actualStep, mainPeak=True)
@@ -142,6 +146,7 @@ for j in range(numberOfPeaks):
 peakLoc_List = np.array(peakLoc_List)
 peakMag_List = np.array(peakMag_List)
 
+#------------------------------------------ TRAJECTORY PRINTING ------------------------------------------
 
 if __name__ == "__main__":
     plt.figure(figsize=(15, 8))
@@ -169,4 +174,5 @@ if __name__ == "__main__":
 
     plt.show()
 
+#------------------------------------------ PART 2 : SYNTEHSIS ------------------------------------------
 
