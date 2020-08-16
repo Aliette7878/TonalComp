@@ -19,9 +19,9 @@ print("Fs: ", Fs)
 
 #------------------------------------------ WINDOWING ------------------------------------------
 # Bandwidth given by the user
-#f_low = int(input("lowest frequency = "));
+#f_low = int(input("lowest frequency (above 30Hz) = "));
 #f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
-f_low = 100;
+f_low = 100; #will limit d_f, shouldn't be put under 30Hz in the app
 
 #Number of harmonics (not useful at the moment)
 N_h = 20;
@@ -32,9 +32,8 @@ Win_type = "hamming"
 L = 4;
 
 #Frequency separation
-f_low_2=f_low*(2**(1/12)); # f_low_2 is 1/2 tone above f_low
-d_fmin = 20     # The frequency resolution is limited, to balance with the temporal resolution
-d_f = max(d_fmin, int(f_low_2 - f_low));
+d_fmin = 30;   #DO NOT CHANGE - The frequency resolution is limited, to balance with the temporal resolution
+d_f = max(d_fmin, int(f_low));
 
 #Window length
 #Depends on our sampling frequency and the desired frequency separation
@@ -175,4 +174,3 @@ if __name__ == "__main__":
     plt.show()
 
 #------------------------------------------ PART 2 : SYNTEHSIS ------------------------------------------
-
