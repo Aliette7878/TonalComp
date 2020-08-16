@@ -23,7 +23,7 @@ LARGE_FONT = ("Verdana", 12)
 NORM_FONT = ("Verdana", 10)
 SMALL_FONT = ("Verdana", 8)
 
-matplotlib.use("TkAgg")
+#matplotlib.use("TkAgg")
 style.use("ggplot")
 
 f = Figure()
@@ -60,7 +60,7 @@ class TonalCompGui(tk.Tk):
         filemenu = tk.Menu(menubar, tearoff=0)
         filemenu.add_command(label="show smth", command=lambda: popupmsg("Not supported just yet!"))
         filemenu.add_separator()
-        filemenu.add_command(label="Exit", command=quit)
+        filemenu.add_command(label="Exit", command=self.destroy) #"command = quit" causes issues
         menubar.add_cascade(label="File", menu=filemenu)
 
         tk.Tk.config(self, menu=menubar)
