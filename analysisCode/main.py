@@ -17,30 +17,49 @@ audio, Fs = librosa.load(path_name, sr=None)
 print("Openning " + path_name)
 print("Fs: ", Fs)
 
-# Freq separation (lowest fundamental frequency?)
-d_F = 30
-# Window type
+#------------------------------------------ WINDOWING ------------------------------------------
+# Bandwidth given by the user
+#f_low = int(input("lowest frequency = "));
+#f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
+f_low = 120;
+
+#Number of harmonics
+N_h = 20;
+
+#Window type
 Win_type = "hamming"
+#Smoothness factor
+L = 4;
 
-# Smoothness factor
-L = 4
+#Frequency separation
+f_low_2=f_low*(2**(1/12)); # f_low_2 is 1/2 tone above f_low
+d_fmin = 20 # to balance with the temporal resolution
+d_f = max(d_fmin, int(f_low_2 - f_low));
 
-# Window length
-# Depends on our sampling frequency and the desired frequency separation
-Win_length = math.floor(L * Fs / d_F)
+#Window length
+#Depends on our sampling frequency and the desired frequency separation
+Win_length = math.floor(L*Fs/d_f);
 
-# Number of FFT samples
-N_fft = 2 ** math.ceil(math.log2(Fs / 3))  # working on JND 3 Hz.
+#Number of FFT samples
+#N_fft should be at least the window's length, and should respect the JND criteria
+N_fft = max(2**math.ceil(math.log2(Win_length)),2**math.ceil(math.log2(Fs/(2*3))));
 
-# Hop Length
-Hop_ratio = 2
-Hop_length = int(Win_length / Hop_ratio)
+#Hop ratio
+Hop_ratio = 4;
+#Hop length
+Hop_length = int(Win_length / Hop_ratio);
 
+#Number of frames
+n_frames = math.floor((len(audio) - Win_length)/Hop_length) + 1;
+
+print("Peak resolution d_f = "+ str(d_f) + " Hz")
 print("N_fft = " + str(N_fft))
-print("window length = " + str(Win_length))
-print("hop length = " + str(Hop_length))
+print("Window length = " + str(Win_length))
+print("Hop length = " + str(Hop_length))
 print("n frames = " + str(math.floor((len(audio) - Win_length) / Hop_length) + 1))
 print("Audio length = " + str(len(audio)))
+
+#------------------------------------------ STFT ------------------------------------------
 
 X = np.abs(librosa.stft(
     audio,
@@ -64,6 +83,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.tight_layout()
     plt.show()
 
+#------------------------------------------ PEAK FINDING ------------------------------------------
 
 def peakFinding(xdB, mainPeak=False):
     n_frames = xdB.shape[1]
