@@ -54,13 +54,15 @@ X_db = librosa.amplitude_to_db(X, ref=np.max)
 
 # Frequency spectrogram
 
-plt.figure(figsize=(10, 4))
-librosa.display.specshow(X_db, y_axis='log', x_axis='time')
 
-plt.colorbar(format='%+2.0f dB')
-plt.title('Frequency spectrogram')
-plt.tight_layout()
-plt.show()
+if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
+    plt.figure(figsize=(10, 4))
+    librosa.display.specshow(X_db, y_axis='log', x_axis='time')
+
+    plt.colorbar(format='%+2.0f dB')
+    plt.title('Frequency spectrogram')
+    plt.tight_layout()
+    plt.show()
 
 
 def peakFinding(xdB, mainPeak=False):
@@ -121,31 +123,30 @@ peakLoc_List = np.array(peakLoc_List)
 peakMag_List = np.array(peakMag_List)
 
 
-plt.figure(figsize=(15, 8))
-plt.subplot(311)
-indexToFreq = Fs / N_fft
+if __name__ == "__main__":
+    plt.figure(figsize=(15, 8))
+    plt.subplot(311)
+    indexToFreq = Fs / N_fft
 
-symbolList = ['o', 'x', 'v', '*', 'h', '+', 'd', '^']
-legendList = []
+    symbolList = ['o', 'x', 'v', '*', 'h', '+', 'd', '^']
+    legendList = []
 
-for j in range(numberOfPeaks):
-    pkloc = peakLoc_List[j]
-    plt.plot(np.arange(len(pkloc)), indexToFreq * pkloc, symbolList[j % len(symbolList)])
-    legendList.append("peak "+str(j+1))
+    for j in range(numberOfPeaks):
+        pkloc = peakLoc_List[j]
+        plt.plot(np.arange(len(pkloc)), indexToFreq * pkloc, symbolList[j % len(symbolList)])
+        legendList.append("peak "+str(j+1))
 
-plt.legend(legendList)
+    plt.legend(legendList)
 
+    plt.subplot(312)
+    fundThroughFrame = np.amin(peakLoc_List, axis=0)
+    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame)
 
-plt.subplot(312)
-fundThroughFrame = np.amin(peakLoc_List, axis=0)
-plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame)
+    plt.subplot(313)
+    N_moving_median = 5
+    fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
+    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother)
 
-
-plt.subplot(313)
-N_moving_median = 5
-fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
-plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother)
-
-plt.show()
+    plt.show()
 
 
