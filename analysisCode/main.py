@@ -23,8 +23,8 @@ print("Fs: ", Fs)
 #f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
 f_low = 100; #will limit d_f, shouldn't be put under 30Hz in the app
 
-#Number of harmonics (not useful at the moment)
-N_h = 20;
+#Number of harmonics
+N_h = 8;
 
 #Window type
 Win_type = "hamming"
@@ -145,7 +145,7 @@ for j in range(numberOfPeaks):
 peakLoc_List = np.array(peakLoc_List)
 peakMag_List = np.array(peakMag_List)
 
-#------------------------------------------ TRAJECTORY PRINTING ------------------------------------------
+#------------------------------------------ FUNDAMENTAL TRAJECTORY PRINTING ------------------------------------------
 
 if __name__ == "__main__":
     plt.figure(figsize=(15, 8))
@@ -170,6 +170,74 @@ if __name__ == "__main__":
     N_moving_median = 5
     fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
     plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother)
+
+    plt.show()
+
+#------------------------------------------ HARMONICS FINDING ------------------------------------------
+def parabolic_interpolation(alpha,beta,gamma):
+    #The parabola is give by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma.
+    location = 0
+    value = gamma
+    if alpha - 2 * beta + gamma!=0 :
+        location = 0.5 * (alpha - gamma) / (alpha - 2 * beta + gamma);
+        value = beta - value * (alpha - gamma) / 4;
+    return [value, location]
+
+#main lobe width
+Lobe_width = math.floor(4*N_fft/Win_length)
+Bw = 2*Lobe_width
+Nyq = math.floor(N_fft/2);
+
+#Where to store the harmonics magnitudes and frequency
+Harmonic_db = np.zeros((n_frames,N_h))
+Harmonic_freq = np.zeros((n_frames,N_h))
+
+
+for n in range(n_frames):
+    for h in range(2,N_h+2):
+
+        #theorical harmonic frequency
+        k_th = math.floor(h*fundThroughFrameSmoother[n])
+
+        #draw a block around the theorical harmonic
+        k_inf = max(0,k_th-Bw)
+        k_inf = min(k_inf, Nyq)
+        Block = X_db[k_inf:min(k_inf + 2 * Bw - 1, Nyq),n]
+
+        maxB = max(Block)
+        k_maxB =np.argmax(Block, axis=0)
+
+
+        if k_maxB>0 and k_maxB<2*(Bw-1): #if k_max has adjacent samples, then interpolation is possible
+            alpha = Block[k_maxB-1];
+            beta  = Block[k_maxB];
+            gamma = Block[k_maxB+1];
+            [peak_mag, peak_loc] = parabolic_interpolation(alpha, beta, gamma); #peak_loc in [-1,1]
+        else:
+            [peak_mag,peak_loc]=[maxB,k_maxB]
+        peak_loc = k_inf + k_maxB + peak_loc
+        Harmonic_freq[n,h-2] = indexToFreq*peak_loc
+        if peak_mag<-35 and n>0:
+            Harmonic_db[n,h-2]=Harmonic_db[n-1,h-2]
+        else:
+            Harmonic_db[n,h-2] = peak_mag
+
+
+if __name__ == "__main__":
+    plt.figure(figsize=(15, 8))
+
+    plt.subplot(211)
+    plt.title('Harmonics frequency')
+    plt.plot(np.arange(len(Harmonic_freq)), Harmonic_freq)
+
+    plt.subplot(212)
+    plt.title('Harmonics smoothed frequency')
+
+    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother)
+    Harmonic_freqSmoother = Harmonic_freq.copy()
+    for h in range(2,N_h+2):
+        Harmonic_freqSmoother[:,h-2] = movingMedian(Harmonic_freq[:,h-2], windowLength=N_moving_median)
+    plt.plot(np.arange(len(Harmonic_freqSmoother)), Harmonic_freqSmoother)
 
     plt.show()
 
