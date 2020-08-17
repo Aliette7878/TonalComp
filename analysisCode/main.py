@@ -4,6 +4,8 @@ import math
 import matplotlib.pyplot as plt
 import glob
 
+
+
 demo_files = []
 for file in glob.glob("..\\demo_sound\\*.wav"):
     demo_files.append(file)
@@ -24,7 +26,7 @@ print("Fs: ", Fs)
 f_low = 100; #will limit d_f, shouldn't be put under 30Hz in the app
 
 #Number of harmonics
-N_h = 8;
+N_h = 10;
 
 #Window type
 Win_type = "hamming"
@@ -194,10 +196,14 @@ def parabolic_interpolation(alpha,beta,gamma):
 #Width of the research block
 Bw = 2*MainLobe
 
+#Setting the number of harmonics to look for
+while np.max(fundThroughFrameSmoother)*indexToFreq*N_h>20000 : #while the highest harmonic's frequency is above 20 000Hz
+    N_h=N_h-1 #an other approach can be to have 8 harmonics, but to set their magnitude to 0 and to keep their freq constant when they come to be higher than 20 000Hz.
+print("Research of "+str(N_h)+" harmonics")
+
 #Iitialization of storage vectors
 Harmonic_db = np.zeros((n_frames,N_h))
 Harmonic_freq = np.zeros((n_frames,N_h))
-
 
 for n in range(n_frames):
     for h in range(2,N_h+2):
