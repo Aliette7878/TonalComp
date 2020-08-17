@@ -3,8 +3,7 @@ import librosa.display
 import math
 import matplotlib.pyplot as plt
 import glob
-
-
+import librosa.display
 
 demo_files = []
 for file in glob.glob("..\\demo_sound\\*.wav"):
@@ -12,62 +11,66 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 
 print(demo_files)
 
-#example_number = int(input(".wav example number = "));
-example_number = 5
-path_name = demo_files[example_number-1]
+# example_number = int(input(".wav example number = "));
+example_number = 1
+path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
 print("Fs: ", Fs)
 
-#------------------------------------------ WINDOWING ------------------------------------------
+# ------------------------------------------ WINDOWING ------------------------------------------
 # Bandwidth given by the user
-#f_low = int(input("lowest frequency (above 30Hz) = "));
-#f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
-f_low = 100; #will limit d_f, shouldn't be put under 30Hz in the app
+# f_low = int(input("lowest frequency (above 30Hz) = "));
+# f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
+f_low = 10  # will limit d_f, shouldn't be put under 30Hz in the app
 
-#Number of harmonics
-N_h = 10;
+# Number of harmonics
 
-#Window type
+N_h = 10
+
+# Window type
 Win_type = "hamming"
-#Smoothness factor
-L = 4;
+# Smoothness factor
+L = 4
 
-#Frequency separation
-d_fmin = 30;   #DO NOT CHANGE - The frequency resolution is limited, to balance with the temporal resolution
-d_f = max(d_fmin, int(f_low));
+# Frequency separation
+d_fmin = 30  # DO NOT CHANGE - The frequency resolution is limited, to balance with the temporal resolution
+d_f = f_low
+if f_low < d_fmin:
+    d_f = d_fmin
+    print('\033[93m' + f"WARNING: f_low chosen too low, and therefore changed to {d_fmin}" + '\033[0m')
 
-#Window length
-#Depends on our sampling frequency and the desired frequency separation
-Win_length = math.floor(L*Fs/d_f);
+# Window length
+# Depends on our sampling frequency and the desired frequency separation
+Win_length = math.floor(L * Fs / d_f)
 
-#Number of FFT samples
-#N_fft should be at least the window's length, and should respect the JND criteria
-N_fft = max(2**math.ceil(math.log2(Win_length)),2**math.ceil(math.log2(Fs/(2*3))));
+# Number of FFT samples
+# N_fft should be at least the window's length, and should respect the JND criteria
+N_fft = max(2 ** math.ceil(math.log2(Win_length)), 2 ** math.ceil(math.log2(Fs / (2 * 3))))
 
-#Nyquist index
-Nyq = math.floor(N_fft/2)
+# Nyquist index
+Nyq = math.floor(N_fft / 2)
 
-#Main lobe width
-MainLobe = math.floor(L*N_fft/Win_length)
+# Main lobe width
+MainLobe = math.floor(L * N_fft / Win_length)
 
-#Hop ratio
-Hop_ratio = 4;
+# Hop ratio
+Hop_ratio = 4
 
-#Hop length
-Hop_length = int(Win_length / Hop_ratio);
+# Hop length
+Hop_length = int(Win_length / Hop_ratio)
 
-#Number of frames
-n_frames = math.floor((len(audio))/Hop_length) + 1;
+# Number of frames
+n_frames = math.floor((len(audio)) / Hop_length) + 1
 
-print("Peak resolution d_f = "+ str(d_f) + " Hz")
+print("Peak resolution d_f = " + str(d_f) + " Hz")
 print("N_fft = " + str(N_fft))
 print("Window length = " + str(Win_length))
 print("Hop length = " + str(Hop_length))
 print("n frames = " + str(n_frames))
 print("Audio length = " + str(len(audio)))
 
-#------------------------------------------ STFT ------------------------------------------
+# ------------------------------------------ STFT ------------------------------------------
 
 X = np.abs(librosa.stft(
     audio,
@@ -90,10 +93,11 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.tight_layout()
     plt.show()
 
-#------------------------------------------ PEAK FINDING ------------------------------------------
 
-#peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
-#If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
+# ------------------------------------------ PEAK FINDING ------------------------------------------
+
+# peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
+# If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
 def peakFinding(xdB, mainPeak=False):
     n_frames = xdB.shape[1]
     peak_loc = np.zeros(n_frames)
@@ -103,15 +107,16 @@ def peakFinding(xdB, mainPeak=False):
         peak_loc[i] = np.argmax(xdB[:, i])
         peak_mag[i] = xdB[int(peak_loc[i]), i]  # np.argmax return float even though here it's always int.
         if mainPeak:
-            if peak_mag[i] < -25:               # just an idea to discard peak searching during silence (or low noise..)
-                peak_loc[i] = peak_loc[i-1]      # silence : don't change pitch interpretation
+            if peak_mag[i] < -25:  # just an idea to discard peak searching during silence (or low noise..)
+                peak_loc[i] = peak_loc[i - 1]  # silence : don't change pitch interpretation
         else:
-            if peak_mag[i] < -35:               # We allow harmonics to be 10dB lower than the main peak
-                peak_loc[i] = peak_loc[i-1]
+            if peak_mag[i] < -35:  # We allow harmonics to be 10dB lower than the main peak
+                peak_loc[i] = peak_loc[i - 1]
 
     return peak_loc, peak_mag
 
-#Erase a trajectory of xdb by setting the frequency bin around the input trajectory to -80dB.
+
+# Erase a trajectory of xdb by setting the frequency bin around the input trajectory to -80dB.
 def flattenMaxPeak(xdB, maxPeakLoc):
     n_frames = xdB.shape[1]
     for frameIndex in range(n_frames):
@@ -123,24 +128,25 @@ def flattenMaxPeak(xdB, maxPeakLoc):
             xdB[freqIndex, frameIndex] = -80
     return xdB
 
-#Median filter on the input segment sig
+
+# Median filter on the input segment sig
 def movingMedian(sig, windowLength=5):
     sigSmooth = np.zeros(len(sig))
     for i in range(len(sig)):
-        if i<math.floor(windowLength/2) or i>len(sig)-math.floor(windowLength/2)-1:
+        if i < math.floor(windowLength / 2) or i > len(sig) - math.floor(windowLength / 2) - 1:
             sigSmooth[i] = sig[i]
         else:
-            sigSmooth[i] = np.median(sig[i-math.floor(windowLength/2):i+math.floor(windowLength/2)])
+            sigSmooth[i] = np.median(sig[i - math.floor(windowLength / 2):i + math.floor(windowLength / 2)])
     return sigSmooth
 
 
-peakLoc_List = []   # Too constraining to initialise with numpy
+peakLoc_List = []  # Too constraining to initialise with numpy
 peakMag_List = []
 X_db_actualStep = X_db.copy()
 
 numberOfPeaks = 5
 
-#for each trajectory : find the maximum trajectory, save it and erase it in xdb.
+# for each trajectory : find the maximum trajectory, save it and erase it in xdb.
 for j in range(numberOfPeaks):
     if j == 0:
         Peak_loc, Peak_mag = peakFinding(X_db_actualStep, mainPeak=True)
@@ -153,12 +159,17 @@ for j in range(numberOfPeaks):
 peakLoc_List = np.array(peakLoc_List)
 peakMag_List = np.array(peakMag_List)
 
-#------------------------------------------ FUNDAMENTAL TRAJECTORY PRINTING ------------------------------------------
+# ------------------------------------------ FUNDAMENTAL TRAJECTORY PRINTING ------------------------------------------
+
+
+N_moving_median = 5
+fundThroughFrame = np.amin(peakLoc_List, axis=0)
+fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
+indexToFreq = Fs / N_fft
 
 if __name__ == "__main__":
     plt.figure(figsize=(15, 8))
     plt.subplot(311)
-    indexToFreq = Fs / N_fft
 
     symbolList = ['o', 'x', 'v', '*', 'h', '+', 'd', '^']
     legendList = []
@@ -166,82 +177,81 @@ if __name__ == "__main__":
     for j in range(numberOfPeaks):
         pkloc = peakLoc_List[j]
         plt.plot(np.arange(len(pkloc)), indexToFreq * pkloc, symbolList[j % len(symbolList)])
-        legendList.append("peak "+str(j+1))
+        legendList.append("peak " + str(j + 1))
 
     plt.legend(legendList)
 
     plt.subplot(312)
-    fundThroughFrame = np.amin(peakLoc_List, axis=0)
     plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame)
 
     plt.subplot(313)
-    N_moving_median = 5
-    fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
     plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother)
 
     plt.show()
 
-#------------------------------------------ HARMONICS FINDING ------------------------------------------
-#-------------------------------------------- BLOCKS METHOD --------------------------------------------
 
-def parabolic_interpolation(alpha,beta,gamma):
-#The parabola is given by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma
+# ------------------------------------------ HARMONICS FINDING ------------------------------------------
+# -------------------------------------------- BLOCKS METHOD --------------------------------------------
+
+def parabolic_interpolation(alpha, beta, gamma):
+    # The parabola is given by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma
     location = 0
     value = gamma
-    if alpha - 2 * beta + gamma!=0 :
+    if alpha - 2 * beta + gamma != 0:
         location = 0.5 * (alpha - gamma) / (alpha - 2 * beta + gamma)
         value = beta - value * (alpha - gamma) / 4
     return [value, location]
 
-#Width of the research block
-Bw = 2*MainLobe
 
-#Setting the number of harmonics to look for
-while np.max(fundThroughFrameSmoother)*indexToFreq*N_h>20000 : #while the highest harmonic's frequency is above 20 000Hz
-    N_h=N_h-1 #an other approach can be to have 8 harmonics, but to set their magnitude to 0 and to keep their freq constant when they come to be higher than 20 000Hz.
-print("Research of "+str(N_h)+" harmonics")
+# Width of the research block
+Bw = 2 * MainLobe
 
-#Iitialization of storage vectors
-Harmonic_db = np.zeros((n_frames,N_h))
-Harmonic_freq = np.zeros((n_frames,N_h))
+# Setting the number of harmonics to look for
+while np.max(fundThroughFrameSmoother) * indexToFreq * N_h > 20000:  # while the highest harmonic's frequency is above 20kHz
+    N_h = N_h - 1   # an other approach can be to have 8 harmonics, but to set their magnitude to 0 and to keep their
+                                                            # freq constant when they come to be higher than 20 000Hz.
+print("Research of " + str(N_h) + " harmonics")
+
+# Iitialization of storage vectors
+Harmonic_db = np.zeros((n_frames, N_h))
+Harmonic_freq = np.zeros((n_frames, N_h))
 
 for n in range(n_frames):
-    for h in range(2,N_h+2):
+    for h in range(2, N_h + 2):
 
-        #theorical harmonic frequency
-        k_th = math.floor(h*fundThroughFrameSmoother[n])
+        # theorical harmonic frequency
+        k_th = math.floor(h * fundThroughFrameSmoother[n])
 
-        #draw a block around the theorical harmonic
-        k_inf = max(0,k_th-Bw)
+        # draw a block around the theorical harmonic
+        k_inf = max(0, k_th - Bw)
         k_inf = min(k_inf, Nyq)
-        Block = X_db[k_inf:min(k_inf + 2 * Bw - 1, Nyq),n]
+        Block = X_db[k_inf:min(k_inf + 2 * Bw - 1, Nyq), n]
 
         maxB = max(Block)
-        k_maxB =np.argmax(Block, axis=0)
+        k_maxB = np.argmax(Block, axis=0)
 
-
-        if k_maxB>0 and k_maxB<2*(Bw-1): #if k_max has adjacent samples, then interpolation is possible
-            alpha = Block[k_maxB-1];
-            beta  = Block[k_maxB];
-            gamma = Block[k_maxB+1];
-            [peak_mag, peak_loc] = parabolic_interpolation(alpha, beta, gamma); #peak_loc in [-1,1]
+        if 0 < k_maxB < 2 * (Bw - 1):  # if k_max has adjacent samples, then interpolation is possible
+            alpha = Block[k_maxB - 1]
+            beta = Block[k_maxB]
+            gamma = Block[k_maxB + 1]
+            [peak_mag, peak_loc] = parabolic_interpolation(alpha, beta, gamma)  # peak_loc in [-1,1]
         else:
-            [peak_mag,peak_loc]=[maxB,k_maxB]
+            [peak_mag, peak_loc] = [maxB, k_maxB]
         peak_loc = k_inf + k_maxB + peak_loc
 
-        #Store the peak
+        # Store the peak
         Harmonic_db[n, h - 2] = peak_mag
-        if peak_mag<-35 and n>0: #same idea than above : -35 are interpreted as silence, the pitch remains the same than before
-            Harmonic_freq[n,h-2]=Harmonic_freq[n-1,h-2]
+        if peak_mag < -35 and n > 0:  # same idea than above : -35 are interpreted as silence, the pitch remains the same than before
+            Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h - 2]
         else:
-            Harmonic_freq[n,h-2] = indexToFreq * peak_loc
+            Harmonic_freq[n, h - 2] = indexToFreq * peak_loc
 
-#Smoothing the harmonics trajectories
+# Smoothing the harmonics trajectories
 Harmonic_freqSmoother = Harmonic_freq.copy()
-for h in range(2,N_h+2):
-    Harmonic_freqSmoother[:,h-2] = movingMedian(Harmonic_freq[:,h-2], windowLength=N_moving_median)
+for h in range(2, N_h + 2):
+    Harmonic_freqSmoother[:, h - 2] = movingMedian(Harmonic_freq[:, h - 2], windowLength=N_moving_median)
 
-#Plot the harmonics trajectories
+# Plot the harmonics trajectories
 if __name__ == "__main__":
     plt.figure(figsize=(15, 8))
 
@@ -262,4 +272,4 @@ if __name__ == "__main__":
 
     plt.show()
 
-#------------------------------------------ PART 2 : SYNTEHSIS ------------------------------------------
+# ------------------------------------------ PART 2 : SYNTEHSIS ------------------------------------------
