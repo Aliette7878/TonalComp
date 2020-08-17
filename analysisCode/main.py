@@ -28,7 +28,7 @@ N_h = 8;
 
 #Window type
 Win_type = "hamming"
-#Smoothness factor (hop_ratio already defined above, do we need to keep L ? )
+#Smoothness factor
 L = 4;
 
 #Frequency separation
@@ -42,6 +42,12 @@ Win_length = math.floor(L*Fs/d_f);
 #Number of FFT samples
 #N_fft should be at least the window's length, and should respect the JND criteria
 N_fft = max(2**math.ceil(math.log2(Win_length)),2**math.ceil(math.log2(Fs/(2*3))));
+
+#Nyquist index
+Nyq = math.floor(N_fft/2)
+
+#Main lobe width
+MainLobe = math.floor(L*N_fft/Win_length)
 
 #Hop ratio
 Hop_ratio = 4;
@@ -174,21 +180,21 @@ if __name__ == "__main__":
     plt.show()
 
 #------------------------------------------ HARMONICS FINDING ------------------------------------------
+#-------------------------------------------- BLOCKS METHOD --------------------------------------------
+
 def parabolic_interpolation(alpha,beta,gamma):
-    #The parabola is give by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma.
+#The parabola is given by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma
     location = 0
     value = gamma
     if alpha - 2 * beta + gamma!=0 :
-        location = 0.5 * (alpha - gamma) / (alpha - 2 * beta + gamma);
-        value = beta - value * (alpha - gamma) / 4;
+        location = 0.5 * (alpha - gamma) / (alpha - 2 * beta + gamma)
+        value = beta - value * (alpha - gamma) / 4
     return [value, location]
 
-#main lobe width
-Lobe_width = math.floor(4*N_fft/Win_length)
-Bw = 2*Lobe_width
-Nyq = math.floor(N_fft/2);
+#Width of the research block
+Bw = 2*MainLobe
 
-#Where to store the harmonics magnitudes and frequency
+#Iitialization of storage vectors
 Harmonic_db = np.zeros((n_frames,N_h))
 Harmonic_freq = np.zeros((n_frames,N_h))
 
@@ -216,28 +222,37 @@ for n in range(n_frames):
         else:
             [peak_mag,peak_loc]=[maxB,k_maxB]
         peak_loc = k_inf + k_maxB + peak_loc
-        Harmonic_freq[n,h-2] = indexToFreq*peak_loc
-        if peak_mag<-35 and n>0:
-            Harmonic_db[n,h-2]=Harmonic_db[n-1,h-2]
+
+        #Store the peak
+        Harmonic_db[n, h - 2] = peak_mag
+        if peak_mag<-35 and n>0: #same idea than above : -35 are interpreted as silence, the pitch remains the same than before
+            Harmonic_freq[n,h-2]=Harmonic_freq[n-1,h-2]
         else:
-            Harmonic_db[n,h-2] = peak_mag
+            Harmonic_freq[n,h-2] = indexToFreq * peak_loc
 
+#Smoothing the harmonics trajectories
+Harmonic_freqSmoother = Harmonic_freq.copy()
+for h in range(2,N_h+2):
+    Harmonic_freqSmoother[:,h-2] = movingMedian(Harmonic_freq[:,h-2], windowLength=N_moving_median)
 
+#Plot the harmonics trajectories
 if __name__ == "__main__":
     plt.figure(figsize=(15, 8))
 
     plt.subplot(211)
-    plt.title('Harmonics frequency')
+    plt.title('Fundamental and its harmonics - block research method')
     plt.plot(np.arange(len(Harmonic_freq)), Harmonic_freq)
+    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame)
+    plt.ylabel("Hz")
+    plt.xlabel("Time")
 
     plt.subplot(212)
-    plt.title('Harmonics smoothed frequency')
-
+    plt.title('Smoothed fundamental and its harmonics - block research method')
     plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother)
-    Harmonic_freqSmoother = Harmonic_freq.copy()
-    for h in range(2,N_h+2):
-        Harmonic_freqSmoother[:,h-2] = movingMedian(Harmonic_freq[:,h-2], windowLength=N_moving_median)
     plt.plot(np.arange(len(Harmonic_freqSmoother)), Harmonic_freqSmoother)
+    plt.xlabel("Time")
+    plt.ylabel("Hz")
+    plt.tight_layout()
 
     plt.show()
 
