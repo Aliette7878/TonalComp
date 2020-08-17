@@ -16,21 +16,19 @@ import glob
 from matplotlib import pyplot as plt
 
 import librosa.display
-import main         # importing script main.py
+import audioAnalysis
 
 
 LARGE_FONT = ("Verdana", 12)
 NORM_FONT = ("Verdana", 10)
 SMALL_FONT = ("Verdana", 8)
 
-#matplotlib.use("TkAgg")
+# matplotlib.use("TkAgg")
 style.use("ggplot")
 
 f = Figure()
-a = f.add_subplot(111)
-librosa.display.specshow(main.X_db, y_axis='log', x_axis='time', ax=a)
-plt.title('Frequency spectrogram')
-plt.tight_layout()
+librosa_display_subplt = f.add_subplot(111)
+# librosa.display.specshow(main.X_db, y_axis='log', x_axis='time', ax=librosa_display_subplt)
 
 
 def popupmsg(msg):
@@ -92,11 +90,14 @@ class StartPage(tk.Frame):
         listbox = tk.Listbox(self)
         listbox.pack(side=tk.TOP, fill='x', padx=50, pady=50)
 
+        self.selectedPath = ""
+
         for file in glob.glob("..\\demo_sound\\*.wav"):
             listbox.insert(-1, file)
 
         def selectItem(evt):
-            labelText.set("Audio file : "+listbox.get(listbox.curselection()))
+            self.selectedPath = listbox.get(listbox.curselection())
+            labelText.set("Audio file : " + self.selectedPath)
             button3['state'] = 'normal'
         listbox.bind("<<ListboxSelect>>", selectItem)
 
@@ -108,7 +109,19 @@ class StartPage(tk.Frame):
         label2 = tk.Label(self, textvariable=labelText, font=NORM_FONT)
         label2.pack(pady=10, padx=10)
 
-        button3 = ttk.Button(self, text="GO", state=tk.DISABLED, command=lambda: controller.show_frame(MainPage))
+        def goAction():
+            # app.config(cursor="wait") # not working
+            analysisParams = audioAnalysis.AnalysisParameters()
+            myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams)
+            librosa_display_subplt.clear()
+            librosa.display.specshow(myaudio.X_db, y_axis='log', x_axis='time', ax=librosa_display_subplt)
+            plt.title('Frequency spectrogram')  # not working
+            f.canvas.draw()
+            f.canvas.flush_events()
+            # app.config(cursor="")     # not working
+            controller.show_frame(MainPage)
+
+        button3 = ttk.Button(self, text="GO", state=tk.DISABLED, command=goAction)
         button3.pack(side="bottom", pady=50)
 
 
@@ -124,8 +137,8 @@ class MainPage(tk.Frame):
 
         # We need to set a canva to be able to integrate any matplotlib printing in our frame
         canvas = FigureCanvasTkAgg(f, self)
-        canvas.draw()
         canvas.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        canvas.draw()
 
         toolbar = NavigationToolbar2Tk(canvas, self)
         toolbar.update()
