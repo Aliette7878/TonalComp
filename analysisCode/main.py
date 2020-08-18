@@ -12,7 +12,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 1
+example_number = 9
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -206,12 +206,6 @@ def parabolic_interpolation(alpha, beta, gamma):
 # Width of the research block
 Bw = 2 * MainLobe
 
-# Setting the number of harmonics to look for
-while np.max(fundThroughFrameSmoother) * indexToFreq * N_h > 20000:  # while the highest harmonic's frequency is above 20kHz
-    N_h = N_h - 1   # an other approach can be to have 8 harmonics, but to set their magnitude to 0 and to keep their
-                                                            # freq constant when they come to be higher than 20 000Hz.
-print("Research of " + str(N_h) + " harmonics")
-
 # Iitialization of storage vectors
 Harmonic_db = np.zeros((n_frames, N_h))
 Harmonic_freq = np.zeros((n_frames, N_h))
@@ -219,32 +213,42 @@ Harmonic_freq = np.zeros((n_frames, N_h))
 for n in range(n_frames):
     for h in range(2, N_h + 2):
 
-        # theorical harmonic frequency
+        # Theoretical harmonic frequency
         k_th = math.floor(h * fundThroughFrameSmoother[n])
 
-        # draw a block around the theorical harmonic
-        k_inf = max(0, k_th - Bw)
-        k_inf = min(k_inf, Nyq)
-        Block = X_db[k_inf:min(k_inf + 2 * Bw - 1, Nyq), n]
+        # If the theoretical harmonic frequency is under 20 000Hz, we can apply the block method
+        if k_th * indexToFreq > 20000:
+            Harmonic_db[n, h - 2] = 0
+            if n>1:
+                Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h]
+            else:
+                Harmonic_freq[n, h - 2] = 0
 
-        maxB = max(Block)
-        k_maxB = np.argmax(Block, axis=0)
+        else :
+            # Draw the research block
+            k_inf = max(0, k_th - Bw)
+            k_inf = min(k_inf, Nyq)
+            Block = X_db[k_inf:min(k_inf + 2 * Bw - 1, Nyq), n]
 
-        if 0 < k_maxB < 2 * (Bw - 1):  # if k_max has adjacent samples, then interpolation is possible
-            alpha = Block[k_maxB - 1]
-            beta = Block[k_maxB]
-            gamma = Block[k_maxB + 1]
-            [peak_mag, peak_loc] = parabolic_interpolation(alpha, beta, gamma)  # peak_loc in [-1,1]
-        else:
-            [peak_mag, peak_loc] = [maxB, k_maxB]
-        peak_loc = k_inf + k_maxB + peak_loc
+            maxB = max(Block)
+            k_maxB = np.argmax(Block, axis=0)
 
-        # Store the peak
-        Harmonic_db[n, h - 2] = peak_mag
-        if peak_mag < -35 and n > 0:  # same idea than above : -35 are interpreted as silence, the pitch remains the same than before
-            Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h - 2]
-        else:
-            Harmonic_freq[n, h - 2] = indexToFreq * peak_loc
+            # Interpolation
+            if 0 < k_maxB < 2 * (Bw - 1):
+                alpha = Block[k_maxB - 1]
+                beta = Block[k_maxB]
+                gamma = Block[k_maxB + 1]
+                [peak_mag, peak_loc] = parabolic_interpolation(alpha, beta, gamma)
+            else:
+                [peak_mag, peak_loc] = [maxB, k_maxB]
+            peak_loc = k_inf + k_maxB + peak_loc
+
+            # Store the peak
+            Harmonic_db[n, h - 2] = peak_mag
+            if peak_mag < -35 and n > 0:  # same idea than above : -35 are interpreted as silence, the pitch remains the same than before
+                Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h - 2]
+            else:
+                Harmonic_freq[n, h - 2] = indexToFreq * peak_loc
 
 # Smoothing the harmonics trajectories
 Harmonic_freqSmoother = Harmonic_freq.copy()
