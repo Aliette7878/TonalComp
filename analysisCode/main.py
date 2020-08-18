@@ -220,7 +220,7 @@ for n in range(n_frames):
         if k_th * indexToFreq > 20000:
             Harmonic_db[n, h - 2] = 0
             if n>1:
-                Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h]
+                Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h - 2]
             else:
                 Harmonic_freq[n, h - 2] = 0
 
