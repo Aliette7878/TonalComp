@@ -70,6 +70,7 @@ print("Hop length = " + str(Hop_length))
 print("n frames = " + str(n_frames))
 print("Audio length = " + str(len(audio)))
 
+
 # ------------------------------------------ STFT ------------------------------------------
 
 X = np.abs(librosa.stft(
@@ -86,7 +87,7 @@ X_db = librosa.amplitude_to_db(X, ref=np.max)
 
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
     plt.figure(figsize=(10, 4))
-    librosa.display.specshow(X_db, y_axis='log', x_axis='time')
+    librosa.display.specshow(X_db, y_axis='log', x_axis='time', sr=Fs)
 
     plt.colorbar(format='%+2.0f dB')
     plt.title('Frequency spectrogram')
@@ -94,7 +95,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.show()
 
 
-# ------------------------------------------ PEAK FINDING ------------------------------------------
+# ------------------------------------------ PEAK TRACKING ------------------------------------------
 
 # peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
 # If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
@@ -159,8 +160,8 @@ for j in range(numberOfPeaks):
 peakLoc_List = np.array(peakLoc_List)
 peakMag_List = np.array(peakMag_List)
 
-# ------------------------------------------ FUNDAMENTAL TRAJECTORY PRINTING ------------------------------------------
 
+# ------------------------------------------ FUNDAMENTAL TRAJECTORY PRINTING ------------------------------------------
 
 N_moving_median = 5
 fundThroughFrame = np.amin(peakLoc_List, axis=0)
@@ -190,11 +191,10 @@ if __name__ == "__main__":
     plt.show()
 
 
-# ------------------------------------------ HARMONICS FINDING ------------------------------------------
-# -------------------------------------------- BLOCKS METHOD --------------------------------------------
+# ------------------------------------------ FIND HARMONICS WITH BLOCKS METHOD ------------------------------------------
 
+# The parabola is given by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma
 def parabolic_interpolation(alpha, beta, gamma):
-    # The parabola is given by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma
     location = 0
     value = gamma
     if alpha - 2 * beta + gamma != 0:
@@ -202,19 +202,33 @@ def parabolic_interpolation(alpha, beta, gamma):
         value = beta - value * (alpha - gamma) / 4
     return [value, location]
 
+# Check if peaks are spaced by the computed fundamental, or by one of its divisors
+def real_fundamental(peak_freqs, fo):
+    peak_freqs2=peak_freqs.copy()
+    peak_freqs2.sort()
+    gap = np.min([np.abs(peak_freqs2[0:len(peak_freqs2)-1]-peak_freqs2[1:len(peak_freqs2)])]) # we expect gap = fo if fo is the right fundamental
+    # A few cases : 1) Gap ~ fo, then fo=fo/1   2) Gap ~ fo/n, then fo=fo/n, 3) Gap = 2fo, then min([fo, 1.5fo,..])
+    divisor = 1
+    while np.abs(fo/divisor-gap)>np.abs(fo/(divisor+1)-gap) and divisor<10:
+        divisor = divisor+1
+    fo = fo/divisor
+    return fo
 
 # Width of the research block
 Bw = 2 * MainLobe
 
-# Iitialization of storage vectors
+# Initialization of storage vectors
 Harmonic_db = np.zeros((n_frames, N_h))
 Harmonic_freq = np.zeros((n_frames, N_h))
 
 for n in range(n_frames):
+
+    fo = real_fundamental(peakLoc_List[:,n], fundThroughFrame[n])
+
     for h in range(2, N_h + 2):
 
         # Theoretical harmonic frequency
-        k_th = math.floor(h * fundThroughFrameSmoother[n])
+        k_th = math.floor(h * fo)
 
         # If the theoretical harmonic frequency is under 20 000Hz, we can apply the block method
         if k_th * indexToFreq > 20000:
@@ -238,17 +252,17 @@ for n in range(n_frames):
                 alpha = Block[k_maxB - 1]
                 beta = Block[k_maxB]
                 gamma = Block[k_maxB + 1]
-                [peak_mag, peak_loc] = parabolic_interpolation(alpha, beta, gamma)
+                [int_mag, int_loc] = parabolic_interpolation(alpha, beta, gamma)
             else:
-                [peak_mag, peak_loc] = [maxB, k_maxB]
-            peak_loc = k_inf + k_maxB + peak_loc
+                [int_mag, int_loc] = [maxB, k_maxB]
+            int_loc = k_inf + k_maxB + int_loc
 
-            # Store the peak
-            Harmonic_db[n, h - 2] = peak_mag
-            if peak_mag < -35 and n > 0:  # same idea than above : -35 are interpreted as silence, the pitch remains the same than before
+            # Store the interpolated peak
+            Harmonic_db[n, h - 2] = int_mag
+            if int_mag < -35 and n > 0:  # same idea than above : -35 are interpreted as silence, the pitch remains the same than before
                 Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h - 2]
             else:
-                Harmonic_freq[n, h - 2] = indexToFreq * peak_loc
+                Harmonic_freq[n, h - 2] = indexToFreq * int_loc
 
 # Smoothing the harmonics trajectories
 Harmonic_freqSmoother = Harmonic_freq.copy()
@@ -261,14 +275,14 @@ if __name__ == "__main__":
 
     plt.subplot(211)
     plt.title('Fundamental and its harmonics - block research method')
+    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame, color = "black")
     plt.plot(np.arange(len(Harmonic_freq)), Harmonic_freq)
-    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame)
     plt.ylabel("Hz")
     plt.xlabel("Time")
 
     plt.subplot(212)
     plt.title('Smoothed fundamental and its harmonics - block research method')
-    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother)
+    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother, color = "black")
     plt.plot(np.arange(len(Harmonic_freqSmoother)), Harmonic_freqSmoother)
     plt.xlabel("Time")
     plt.ylabel("Hz")
