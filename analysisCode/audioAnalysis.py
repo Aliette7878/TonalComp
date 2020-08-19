@@ -1,6 +1,7 @@
 import librosa.display
 import math
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class AudioAnalysis:
@@ -31,6 +32,12 @@ class AudioAnalysis:
         print("Hop length = " + str(self.hop_length))
         print("n frames = " + str(self.n_frames))
         print("Audio length = " + str(len(self.audio)))
+
+    def showframe(self, frameIndex):
+        indexToFreq = self.Fs / self.N_fft
+        fig2 = plt.figure(figsize=(20, 15))
+        plt.plot(indexToFreq * np.arange(self.X_db[:1500, frameIndex].size), self.X_db[:1500, frameIndex])
+        fig2.show()
 
 
 class AnalysisParameters:

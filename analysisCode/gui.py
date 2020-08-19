@@ -29,6 +29,7 @@ style.use("ggplot")
 f = Figure()
 librosa_display_subplt = f.add_subplot(111)
 # librosa.display.specshow(main.X_db, y_axis='log', x_axis='time', ax=librosa_display_subplt)
+myaudio = None
 
 
 def popupmsg(msg):
@@ -40,6 +41,36 @@ def popupmsg(msg):
     b1.pack()
     popup.mainloop()
 
+
+def show_audio_frame(tk_win, num_value):
+    tk_win.destroy()
+    try:
+        value = int(num_value)
+    except ValueError:
+        popupmsg("Invalid number format")
+        return
+
+    if 0 < value < myaudio.n_frames - 1:
+        myaudio.showframe(value)
+    else:
+        popupmsg("Selected number out of range")
+
+
+def ask_frame_num():
+    if myaudio is None:
+        popupmsg("ERROR : no audio file processed currently")
+    else:
+        num = tk.Tk()
+        num.wm_title("Window selection")
+        label = ttk.Label(num, text=f"select your window's number from 0 to {myaudio.n_frames-1}", font=NORM_FONT)
+        label.pack(side="top", fill="x", pady=10)
+
+        num_value = ttk.Entry(num)
+        num_value.pack()
+
+        b1 = ttk.Button(num, text="Ok", command=lambda: show_audio_frame(num, num_value.get()))
+        b1.pack()
+        num.mainloop()
 
 class TonalCompGui(tk.Tk):
 
@@ -60,6 +91,10 @@ class TonalCompGui(tk.Tk):
         filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self.destroy) #"command = quit" causes issues
         menubar.add_cascade(label="File", menu=filemenu)
+
+        funcmenu = tk.Menu(menubar, tearoff=0)
+        funcmenu.add_command(label="show frame", command=ask_frame_num)
+        menubar.add_cascade(label="Functionalities", menu=funcmenu)
 
         tk.Tk.config(self, menu=menubar)
 
@@ -110,6 +145,7 @@ class StartPage(tk.Frame):
         label2.pack(pady=10, padx=10)
 
         def goAction():
+            global myaudio
             # app.config(cursor="wait") # not working
             analysisParams = audioAnalysis.AnalysisParameters()
             myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams)
