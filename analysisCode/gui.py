@@ -2,8 +2,6 @@
 # Code addapted from tutorial here : https://pythonprogramming.net/tkinter-depth-tutorial-making-actual-program/
 # License: http://creativecommons.org/licenses/by-sa/3.0/
 
-import matplotlib
-
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from matplotlib import style
@@ -16,6 +14,7 @@ import glob
 from matplotlib import pyplot as plt
 
 import librosa.display
+from pathlib import Path
 import audioAnalysis
 
 
@@ -71,6 +70,7 @@ def ask_frame_num():
         b1 = ttk.Button(num, text="Ok", command=lambda: show_audio_frame(num, num_value.get()))
         b1.pack()
         num.mainloop()
+
 
 class TonalCompGui(tk.Tk):
 
@@ -132,16 +132,16 @@ class StartPage(tk.Frame):
 
         def selectItem(evt):
             self.selectedPath = listbox.get(listbox.curselection())
-            labelText.set("Audio file : " + self.selectedPath)
-            button3['state'] = 'normal'
+            self.labelText.set("Audio file : " + self.selectedPath)
+            self.button3['state'] = 'normal'
         listbox.bind("<<ListboxSelect>>", selectItem)
 
-        button1 = ttk.Button(self, text="Select your own file file", command=lambda: popupmsg("Not supported yet"))
+        button1 = ttk.Button(self, text="Select your own file file", command=lambda: self.selectFile())
         button1.pack()
 
-        labelText = tk.StringVar()
-        labelText.set("no audio file selected")
-        label2 = tk.Label(self, textvariable=labelText, font=NORM_FONT)
+        self.labelText = tk.StringVar()
+        self.labelText.set("no audio file selected")
+        label2 = tk.Label(self, textvariable=self.labelText, font=NORM_FONT)
         label2.pack(pady=10, padx=10)
 
         def goAction():
@@ -157,8 +157,23 @@ class StartPage(tk.Frame):
             # app.config(cursor="")     # not working
             controller.show_frame(MainPage)
 
-        button3 = ttk.Button(self, text="GO", state=tk.DISABLED, command=goAction)
-        button3.pack(side="bottom", pady=50)
+        self.button3 = ttk.Button(self, text="GO", state=tk.DISABLED, command=goAction)
+        self.button3.pack(side="bottom", pady=50)
+
+    def selectFile(self):
+        filename = tk.filedialog.askopenfilename(filetypes=(("Audio files (wav,m4a)", "*.wav;*.m4a")
+                                                            , ("All files", "*.*")))  # mp3 not supported yet (can be with ffmpeg)
+        if filename:
+            try:
+                if Path(filename).stat().st_size < 10000000:    # if file size < 10MB
+                    self.selectedPath = filename
+                    self.labelText.set("Audio file : " + self.selectedPath)
+                    self.button3['state'] = 'normal'
+                else:
+                    popupmsg("ERROR : File size > 10MB")
+            except ValueError:
+                popupmsg("ERROR in the file")
+                return
 
 
 class MainPage(tk.Frame):
