@@ -4,6 +4,8 @@ import math
 import matplotlib.pyplot as plt
 import glob
 import librosa.display
+import wave
+import struct
 
 demo_files = []
 for file in glob.glob("..\\demo_sound\\*.wav"):
@@ -22,10 +24,10 @@ print("Fs: ", Fs)
 # Bandwidth given by the user
 # f_low = int(input("lowest frequency (above 30Hz) = "));
 # f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
-f_low = 10  # will limit d_f, shouldn't be put under 30Hz in the app
+f_low = 30  # will limit d_f, shouldn't be put under 30Hz in the app
 
-# Number of harmonics
-N_h = 10
+# Number of harmonics (INCLUDING the fundamental)
+N_h = 8
 
 # Window type
 Win_type = "hamming"
@@ -162,7 +164,7 @@ peakMag_List = np.array(peakMag_List)
 
 # ------------------------------------------ FUNDAMENTAL TRAJECTORY PRINTING ------------------------------------------
 
-N_moving_median = 5
+N_moving_median = 10
 fundThroughFrame = np.amin(peakLoc_List, axis=0)
 fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
 indexToFreq = Fs / N_fft
@@ -195,10 +197,10 @@ if __name__ == "__main__":
 # The parabola is given by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma
 def parabolic_interpolation(alpha, beta, gamma):
     location = 0
-    value = gamma
+    value = beta
     if alpha - 2 * beta + gamma != 0:
         location = 0.5 * (alpha - gamma) / (alpha - 2 * beta + gamma)
-        value = beta - value * (alpha - gamma) / 4
+        value = beta - location * (alpha - gamma) / 4
     return [value, location]
 
 # Check if peaks are spaced by the computed fundamental, or by one of its divisors
@@ -211,31 +213,36 @@ def real_fundamental(peak_freqs, fo):
     while np.abs(fo/divisor-gap)>np.abs(fo/(divisor+1)-gap) and divisor<10:
         divisor = divisor+1
     fo = fo/divisor
-    return fo
+    return [fo, divisor]
 
 # Width of the research block
 Bw = 2 * MainLobe
 
-# Initialization of storage vectors
+# Initialization of storage vectors (which INCLUDE the fundamtental)
 Harmonic_db = np.zeros((n_frames, N_h))
 Harmonic_freq = np.zeros((n_frames, N_h))
 
+
+# Building Harmonic_db and Harmonic_freq (which INCLUDE the fundamental)
 for n in range(n_frames):
 
-    fo = real_fundamental(peakLoc_List[:,n], fundThroughFrame[n])
+    # Let's determine what is the real fundamental of our sound, and which harmonic is the one we perceive
+    [fo, divisor] = real_fundamental(peakLoc_List[:,n], fundThroughFrame[n])
 
-    for h in range(2, N_h + 2):
+    # Example : we have a 200Hz voice sound cut at 990Hz, so real_fundamental() finds [fo,divisor] = [200Hz, 5].
+    # we now have to search for harmonics [5th, 6th, ..., Nh+5th]
+    for h in range(N_h):
 
         # Theoretical harmonic frequency
-        k_th = math.floor(h * fo)
+        k_th = math.floor((h+divisor) * fo)
 
         # If the theoretical harmonic frequency is under 20 000Hz, we can apply the block method
-        if k_th * indexToFreq > 20000:
-            Harmonic_db[n, h - 2] = 0
+        if k_th * indexToFreq > 19000:
+            Harmonic_db[n, h] = -100
             if n>1:
-                Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h - 2]
+                Harmonic_freq[n, h] = Harmonic_freq[n - 1, h]
             else:
-                Harmonic_freq[n, h - 2] = 0
+                Harmonic_freq[n, h] = 0
 
         else :
             # Draw the research block
@@ -252,21 +259,22 @@ for n in range(n_frames):
                 beta = Block[k_maxB]
                 gamma = Block[k_maxB + 1]
                 [int_mag, int_loc] = parabolic_interpolation(alpha, beta, gamma)
+                int_mag=min(int_mag,0)
             else:
                 [int_mag, int_loc] = [maxB, k_maxB]
             int_loc = k_inf + k_maxB + int_loc
 
             # Store the interpolated peak
-            Harmonic_db[n, h - 2] = int_mag
+            Harmonic_db[n, h] = int_mag
             if int_mag < -35 and n > 0:  # same idea than above : -35 are interpreted as silence, the pitch remains the same than before
-                Harmonic_freq[n, h - 2] = Harmonic_freq[n - 1, h - 2]
+                Harmonic_freq[n, h] = Harmonic_freq[n - 1, h]
             else:
-                Harmonic_freq[n, h - 2] = indexToFreq * int_loc
+                Harmonic_freq[n, h] = indexToFreq * int_loc
 
 # Smoothing the harmonics trajectories
 Harmonic_freqSmoother = Harmonic_freq.copy()
-for h in range(2, N_h + 2):
-    Harmonic_freqSmoother[:, h - 2] = movingMedian(Harmonic_freq[:, h - 2], windowLength=N_moving_median)
+for h in range(N_h):
+    Harmonic_freqSmoother[:, h] = movingMedian(Harmonic_freq[:, h], windowLength=N_moving_median)
 
 # Plot the harmonics trajectories
 if __name__ == "__main__":
@@ -309,31 +317,65 @@ win_time=np.arange(0,Win_length)
 # Allocate the output vector
 out=np.zeros(len(audio))
 
+# db to amplitude
+Harmonic_amp=librosa.db_to_amplitude(Harmonic_db, np.max(X))
+
 # Compute the normalized frequency [0,pi]
 Harmonic_freqSmootherNorm = 2*np.pi*Harmonic_freqSmoother/Fs
 
 # Additive synthesis
 for m in range(n_frames-1):
+
     buffer = np.zeros(Win_length)
 
-    # Fundamental synthesis
-    
-    # Harmonics synthesis
     for i in range(N_h):
+
         # Interpolation of sines amplitude
-        win_amp = linear_interpolation(Harmonic_db[m,i], Harmonic_db[m+1,i], Win_length)
-        if abs(Harmonic_freqSmoother[m,i]-Harmonic_freqSmoother[m+1,i])<delta_notes :
+        win_amp = linear_interpolation(Harmonic_amp[m,i], Harmonic_amp[m+1,i], Win_length)
+
+        # Interpolation of sines frequency
+        if abs(Harmonic_freqSmoother[m,i]-Harmonic_freqSmoother[m+1,i])<0.5:
             win_freq=linear_interpolation(Harmonic_freqSmoother[m,i],Harmonic_freqSmoother[m+1,i],Win_length)
         else :
             win_freq=np.ones(Win_length)*Harmonic_freqSmoother[m,i]
-        # Generate sine
+
+        # Generate the sinusoid
         win_sine = win_amp*np.sin(2*np.pi*win_time*win_freq/Fs)
         buffer = buffer+win_sine
 
+    # Overlap and add
     ola_indices_a = (m)*Hop_length
     ola_indices_b = (m)*Hop_length + Win_length
     y=WinSynth*buffer
     out[ola_indices_a:ola_indices_b] = out[ola_indices_a:ola_indices_b]+y[0:len(out[ola_indices_a:ola_indices_b])]
 
-#out=out*normalize(audio)/normalize(out) #NOT WORKING YET
+# Normalizing out
+out=out*(np.max(audio)-np.min(audio))/(np.max(out)-np.min(out))
 
+
+# ------------------------------------------ SOUND - WAV FILE CREATION ------------------------------------------
+
+# Open the wav file
+file_name = "Synthesized_example"+str(example_number)+".wav"
+wav_file = wave.open(file_name, "w")
+print("Saving " + file_name + "...")
+
+# Writing parameters
+data_size = len(out)
+amp = 64000.0     # multiplier for amplitude
+nchannels = 1
+sampwidth = 2 # 2 for stereo
+comptype = "NONE"
+compname = "not compressed"
+
+# Set writing parameters
+wav_file.setparams((nchannels, sampwidth, Fs, data_size,comptype, compname))
+
+# Write out in the wav file
+for s in out:
+    wav_file.writeframes(struct.pack('h', int(s*amp/2)))
+
+wav_file.close()
+print(file_name+" saved")
+
+# ------------------------------------------ SYNTHESIZED SPECTROGRAM ------------------------------------------
