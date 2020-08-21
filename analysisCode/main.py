@@ -25,6 +25,7 @@ print("Fs: ", Fs)
 # f_low = int(input("lowest frequency (above 30Hz) = "));
 # f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
 f_low = 30  # will limit d_f, shouldn't be put under 30Hz in the app
+f_high = 18000 #can not be higher than 19 000 Hz
 
 # Number of harmonics (INCLUDING the fundamental)
 N_h = 8
@@ -236,8 +237,8 @@ for n in range(n_frames):
         # Theoretical harmonic frequency
         k_th = math.floor((h+divisor) * fo)
 
-        # If the theoretical harmonic frequency is under 20 000Hz, we can apply the block method
-        if k_th * indexToFreq > 19000:
+        # If the theoretical harmonic frequency is in the bandwidth, we can apply the block method
+        if k_th * indexToFreq > f_high:
             Harmonic_db[n, h] = -100
             if n>1:
                 Harmonic_freq[n, h] = Harmonic_freq[n - 1, h]
