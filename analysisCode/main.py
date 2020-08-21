@@ -25,7 +25,6 @@ print("Fs: ", Fs)
 f_low = 10  # will limit d_f, shouldn't be put under 30Hz in the app
 
 # Number of harmonics
-
 N_h = 10
 
 # Window type
@@ -291,3 +290,50 @@ if __name__ == "__main__":
     plt.show()
 
 # ------------------------------------------ PART 2 : SYNTEHSIS ------------------------------------------
+
+# Synthesis parameters
+
+# Synthesis window = analysis window
+WinSynth=np.hamming(Win_length)
+
+def linear_interpolation(a,b,n):
+    s = np.arange(n)*(b-a)/(n-1) + np.ones(n)*a
+    return s
+
+# Smallest frequency separation between two notes in the melody
+delta_notes = 0.95*abs(d_fmin*2**(1/12)-d_fmin) #taken as (lowest_note + 1/2 tone) - (lowest_note)
+
+# Time axis
+win_time=np.arange(0,Win_length)
+
+# Allocate the output vector
+out=np.zeros(len(audio))
+
+# Compute the normalized frequency [0,pi]
+Harmonic_freqSmootherNorm = 2*np.pi*Harmonic_freqSmoother/Fs
+
+# Additive synthesis
+for m in range(n_frames-1):
+    buffer = np.zeros(Win_length)
+
+    # Fundamental synthesis
+    
+    # Harmonics synthesis
+    for i in range(N_h):
+        # Interpolation of sines amplitude
+        win_amp = linear_interpolation(Harmonic_db[m,i], Harmonic_db[m+1,i], Win_length)
+        if abs(Harmonic_freqSmoother[m,i]-Harmonic_freqSmoother[m+1,i])<delta_notes :
+            win_freq=linear_interpolation(Harmonic_freqSmoother[m,i],Harmonic_freqSmoother[m+1,i],Win_length)
+        else :
+            win_freq=np.ones(Win_length)*Harmonic_freqSmoother[m,i]
+        # Generate sine
+        win_sine = win_amp*np.sin(2*np.pi*win_time*win_freq/Fs)
+        buffer = buffer+win_sine
+
+    ola_indices_a = (m)*Hop_length
+    ola_indices_b = (m)*Hop_length + Win_length
+    y=WinSynth*buffer
+    out[ola_indices_a:ola_indices_b] = out[ola_indices_a:ola_indices_b]+y[0:len(out[ola_indices_a:ola_indices_b])]
+
+#out=out*normalize(audio)/normalize(out) #NOT WORKING YET
+
