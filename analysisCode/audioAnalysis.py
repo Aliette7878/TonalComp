@@ -9,6 +9,7 @@ class AudioAnalysis:
     def __init__(self, pathName, analysisParams):
         # self.analysisParams = analysisParams      #for the moment not needed outside
         print("Opening " + pathName)
+        self.pathName = pathName
         self.audio, self.Fs = librosa.load(pathName, sr=None)       # mp3 not supported yet (can be with ffmpeg)
         print("Fs: ", self.Fs)
         self.win_length = math.floor(analysisParams.L * self.Fs / analysisParams.d_f)

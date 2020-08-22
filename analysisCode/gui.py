@@ -1,13 +1,14 @@
 # The code for changing pages was derived from: http://stackoverflow.com/questions/7546050/switch-between-two-frames-in-tkinter
 # Code addapted from tutorial here : https://pythonprogramming.net/tkinter-depth-tutorial-making-actual-program/
 # License: http://creativecommons.org/licenses/by-sa/3.0/
-
+import winsound
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from matplotlib import style
 
 import tkinter as tk
 from tkinter import ttk
+from threading import Thread
 
 import glob
 
@@ -87,14 +88,18 @@ class TonalCompGui(tk.Tk):
 
         menubar = tk.Menu(container)
         filemenu = tk.Menu(menubar, tearoff=0)
-        filemenu.add_command(label="show smth", command=lambda: popupmsg("Not supported just yet!"))
+        filemenu.add_command(label="Back to lobby", command=lambda: self.show_frame(StartPage))
         filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self.destroy) #"command = quit" causes issues
         menubar.add_cascade(label="File", menu=filemenu)
 
-        funcmenu = tk.Menu(menubar, tearoff=0)
-        funcmenu.add_command(label="show frame", command=ask_frame_num)
-        menubar.add_cascade(label="Functionalities", menu=funcmenu)
+        analysismenu = tk.Menu(menubar, tearoff=0)
+        analysismenu.add_command(label="show frame", command=ask_frame_num)
+        menubar.add_cascade(label="Analysis", menu=analysismenu)
+
+        synthmenu = tk.Menu(menubar, tearoff=0)
+        synthmenu.add_command(label="show smth", command=lambda: popupmsg("not implemented yet"))
+        menubar.add_cascade(label="Synthesis", menu=synthmenu)
 
         tk.Tk.config(self, menu=menubar)
 
@@ -110,6 +115,9 @@ class TonalCompGui(tk.Tk):
         self.show_frame(StartPage)
 
     def show_frame(self, cont):
+        if cont == MainPage:    # This is the wrong place to do it but I didn't find better yet
+            self.frames[cont].infosText.set(myaudio.pathName+"\n\nFs: "+str(myaudio.Fs)+"\nN_fft: "+str(myaudio.N_fft) +
+                                            "\nN_frames: "+str(myaudio.n_frames))
         frame = self.frames[cont]
         frame.tkraise()
 
@@ -142,7 +150,7 @@ class StartPage(tk.Frame):
         self.labelText = tk.StringVar()
         self.labelText.set("no audio file selected")
         label2 = tk.Label(self, textvariable=self.labelText, font=NORM_FONT)
-        label2.pack(pady=10, padx=10)
+        label2.pack(pady=20, padx=20)
 
         def goAction():
             global myaudio
@@ -162,7 +170,7 @@ class StartPage(tk.Frame):
 
     def selectFile(self):
         filename = tk.filedialog.askopenfilename(filetypes=(("Audio files (wav,m4a)", "*.wav;*.m4a")
-                                                            , ("All files", "*.*")))  # mp3 not supported yet (can be with ffmpeg)
+                                                ,("All files", "*.*")))  # mp3 not supported yet (can be with ffmpeg)
         if filename:
             try:
                 if Path(filename).stat().st_size < 10000000:    # if file size < 10MB
@@ -180,18 +188,36 @@ class MainPage(tk.Frame):
 
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-        label = tk.Label(self, text="Main Page", font=LARGE_FONT)
-        label.pack(pady=10, padx=10)
+        frame1 = tk.Frame(self)
+        frame1.pack(fill=tk.X)
+        label = tk.Label(frame1, text="Main Page", font=LARGE_FONT)
+        label.pack(pady=10, padx=10, side=tk.TOP)
 
-        lobbyButton = ttk.Button(self, text="Back to Lobby", command=lambda: controller.show_frame(StartPage))
-        lobbyButton.pack()
+        def _playSound():
+            playButton['state'] = 'disabled'
+            winsound.PlaySound(myaudio.pathName,  winsound.SND_FILENAME)
+            playButton['state'] = 'normal'
 
+        def threadPlaySound():
+            Thr = Thread(target=_playSound)
+            Thr.start()  # Launch created thread
+
+        playButton = ttk.Button(frame1, text='Play', command=threadPlaySound)
+        playButton.pack(pady=20, padx=50, side=tk.LEFT)
+
+        self.infosText = tk.StringVar()
+        self.infosText.set('waiting to load audio....................................................')
+        w = tk.Message(frame1, textvariable=self.infosText, justify=tk.RIGHT, width=450)
+        w.pack(pady=20, padx=50, side=tk.RIGHT, fill=tk.BOTH)
+
+        frame2 = tk.Frame(self)
+        frame2.pack(fill=tk.BOTH, expand=True)
         # We need to set a canva to be able to integrate any matplotlib printing in our frame
-        canvas = FigureCanvasTkAgg(f, self)
+        canvas = FigureCanvasTkAgg(f, frame2)
         canvas.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
         canvas.draw()
 
-        toolbar = NavigationToolbar2Tk(canvas, self)
+        toolbar = NavigationToolbar2Tk(canvas, frame2)
         toolbar.update()
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
