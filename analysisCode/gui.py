@@ -50,7 +50,7 @@ def show_audio_frame(tk_win, num_value):
         popupmsg("Invalid number format")
         return
 
-    if 0 < value < myaudio.n_frames - 1:
+    if 0 <= value < myaudio.n_frames:
         myaudio.showframe(value)
     else:
         popupmsg("Selected number out of range")
@@ -69,6 +69,37 @@ def ask_frame_num():
         num_value.pack()
 
         b1 = ttk.Button(num, text="Ok", command=lambda: show_audio_frame(num, num_value.get()))
+        b1.pack()
+        num.mainloop()
+
+
+def show_peaks(tk_win, num_value):
+    tk_win.destroy()
+    try:
+        value = int(num_value)
+    except ValueError:
+        popupmsg("Invalid number format")
+        return
+
+    if 1 <= value <= 10:
+        myaudio.showpeaks(value)
+    else:
+        popupmsg("Selected number out of range (1 to 10)")
+
+
+def ask_peaks_num():
+    if myaudio is None:
+        popupmsg("ERROR : no audio file processed currently")
+    else:
+        num = tk.Tk()
+        num.wm_title("Peak number selection")
+        label = ttk.Label(num, text=f"select your number of peaks from 1 to 10", font=NORM_FONT)
+        label.pack(side="top", fill="x", pady=10)
+
+        num_value = ttk.Entry(num)
+        num_value.pack()
+
+        b1 = ttk.Button(num, text="Ok", command=lambda: show_peaks(num, num_value.get()))
         b1.pack()
         num.mainloop()
 
@@ -95,10 +126,11 @@ class TonalCompGui(tk.Tk):
 
         analysismenu = tk.Menu(menubar, tearoff=0)
         analysismenu.add_command(label="show frame", command=ask_frame_num)
+        analysismenu.add_command(label="show peaks", command=ask_peaks_num)
         menubar.add_cascade(label="Analysis", menu=analysismenu)
 
         synthmenu = tk.Menu(menubar, tearoff=0)
-        synthmenu.add_command(label="show smth", command=lambda: popupmsg("not implemented yet"))
+        synthmenu.add_command(label="do smth", command=lambda: popupmsg("not implemented yet"))
         menubar.add_cascade(label="Synthesis", menu=synthmenu)
 
         tk.Tk.config(self, menu=menubar)
