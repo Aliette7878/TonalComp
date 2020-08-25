@@ -138,7 +138,7 @@ class TonalCompGui(tk.Tk):
 
         self.frames = {}
 
-        for F in (StartPage, MainPage):
+        for F in (StartPage, LoadingPage, MainPage):
             frame = F(container, self)
 
             self.frames[F] = frame
@@ -186,6 +186,8 @@ class StartPage(tk.Frame):
         label2.pack(pady=20, padx=20)
 
         def goAction():
+            controller.show_frame(LoadingPage)
+            controller.update()
             global myaudio
             # app.config(cursor="wait") # not working
             time_1 = time.time()
@@ -221,6 +223,14 @@ class StartPage(tk.Frame):
             except ValueError:
                 popupmsg("ERROR in the file")
                 return
+
+
+class LoadingPage(tk.Frame):
+
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+        label = tk.Label(self, text="Loading...", font=LARGE_FONT)
+        label.pack(pady=10, padx=10)
 
 
 class MainPage(tk.Frame):
