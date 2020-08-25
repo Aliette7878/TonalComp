@@ -126,8 +126,8 @@ def flattenMaxPeak(xdB, maxPeakLoc):
     n_frames = xdB.shape[1]
     for frameIndex in range(n_frames):
 
-        minfreq = int(maxPeakLoc[frameIndex]) - int(maxPeakLoc[frameIndex] / 16)
-        maxfreq = int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 16)
+        minfreq = int(maxPeakLoc[frameIndex]) - int(maxPeakLoc[frameIndex] / 10)  # Value /10 to adapt to N_fft or f_min
+        maxfreq = int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 10)
 
         for freqIndex in range(minfreq, maxfreq):
             xdB[freqIndex, frameIndex] = -80

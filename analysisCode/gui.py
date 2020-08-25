@@ -11,6 +11,7 @@ from tkinter import ttk
 from threading import Thread
 
 import glob
+import time
 
 from matplotlib import pyplot as plt
 
@@ -29,7 +30,7 @@ style.use("ggplot")
 f = Figure()
 librosa_display_subplt = f.add_subplot(111)
 # librosa.display.specshow(main.X_db, y_axis='log', x_axis='time', ax=librosa_display_subplt)
-myaudio = None
+myaudio = type('AudioAnalysis', (), {})()
 
 
 def popupmsg(msg):
@@ -187,15 +188,21 @@ class StartPage(tk.Frame):
         def goAction():
             global myaudio
             # app.config(cursor="wait") # not working
+            time_1 = time.time()
             analysisParams = audioAnalysis.AnalysisParameters()
             myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams)
+            print(f"\n\nComputation in {time.time()-time_1} seconds")
+            time_2 = time.time()
             librosa_display_subplt.clear()
             librosa.display.specshow(myaudio.X_db, y_axis='log', x_axis='time', ax=librosa_display_subplt)
             plt.title('Frequency spectrogram')  # not working
+            print(f"\n\nLibrosa display computation in {time.time()-time_2} seconds")
+            time_3 = time.time()
             f.canvas.draw()
             f.canvas.flush_events()
             # app.config(cursor="")     # not working
             controller.show_frame(MainPage)
+            print(f"\n\nCanvas drawing in {time.time()-time_3} seconds")
 
         self.button3 = ttk.Button(self, text="GO", state=tk.DISABLED, command=goAction)
         self.button3.pack(side="bottom", pady=50)
