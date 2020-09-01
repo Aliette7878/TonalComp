@@ -14,20 +14,29 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 9
+example_number = 7
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
 print("Fs: ", Fs)
 
-# ------------------------------------------ WINDOWING ------------------------------------------
-# Bandwidth given by the user
-# f_low = int(input("lowest frequency (above 30Hz) = "));
-# f_high = int(input("highest frequency = ")); #bandwidth = [f_low, f_high]
-f_low = 30  # will limit d_f, shouldn't be put under 30Hz in the app
-f_high = 18000 #can not be higher than 19 000 Hz
 
-# Number of harmonics (INCLUDING the fundamental)
+# ------------------------------------------ USER SETTINGS ------------------------------------------
+
+# Do you want to look for a missing fundamental ?
+MissingFundSearch = False # Set true for example_9, with the "300Hz_no_fundamental" voice
+
+# Bandwidth
+f_low = 100   # will limit d_f, STRONGLY IMPACT THE FINAL RESULT
+f_high = 18000 # can not be higher than 19 000 Hz
+
+
+# ------------------------------------------ WINDOWING ------------------------------------------
+
+# Number of peaks to look for the fundamental (high inmpact on the result, the user shouldn't be able to change it)
+numberOfPeaks = 3
+
+# Number of harmonics (including the fundamental)
 N_h = 8
 
 # Window type
@@ -44,11 +53,11 @@ if f_low < d_fmin:
 
 # Window length
 # Depends on our sampling frequency and the desired frequency separation
-Win_length = math.floor(L * Fs / d_f)
+Win_length = math.floor(L * Fs / d_f) # is higher when d_f is low
 
 # Number of FFT samples
 # N_fft should be at least the window's length, and should respect the JND criteria
-N_fft = max(2 ** math.ceil(math.log2(Win_length)), 2 ** math.ceil(math.log2(Fs / (2 * 3))))
+N_fft = 2 ** math.ceil(math.log2(Win_length)) # 2 ** math.ceil(math.log2(Fs / (2 * 3)))) #atually better if not so big
 
 # Nyquist index
 Nyq = math.floor(N_fft / 2)
@@ -85,6 +94,7 @@ X = np.abs(librosa.stft(
 
 X_db = librosa.amplitude_to_db(X, ref=np.max)
 
+
 # Frequency spectrogram
 
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
@@ -109,11 +119,13 @@ def peakFinding(xdB, mainPeak=False):
     for i in range(n_frames):
         peak_loc[i] = np.argmax(xdB[:, i])
         peak_mag[i] = xdB[int(peak_loc[i]), i]  # np.argmax return float even though here it's always int.
+
         if mainPeak:
-            if peak_mag[i] < -25:  # just an idea to discard peak searching during silence (or low noise..)
+            if peak_mag[i] < 0.90*np.min(X_db):  # just an idea to discard peak searching during silence (or low noise..)
                 peak_loc[i] = peak_loc[i - 1]  # silence : don't change pitch interpretation
+        
         else:
-            if peak_mag[i] < -35:  # We allow harmonics to be 10dB lower than the main peak
+            if peak_mag[i] < 0.90*np.min(X_db):
                 peak_loc[i] = peak_loc[i - 1]
 
     return peak_loc, peak_mag
@@ -146,8 +158,7 @@ def movingMedian(sig, windowLength=5):
 peakLoc_List = []  # Too constraining to initialise with numpy
 peakMag_List = []
 X_db_actualStep = X_db.copy()
-
-numberOfPeaks = 5
+X_db_actualStep[0:int(f_low*N_fft/Fs),:]=np.min(X_db)  # To avoid looking for sounds under the lowest sound we want to hear
 
 # for each trajectory : find the maximum trajectory, save it and erase it in xdb.
 for j in range(numberOfPeaks):
@@ -165,7 +176,8 @@ peakMag_List = np.array(peakMag_List)
 
 # ------------------------------------------ FUNDAMENTAL TRAJECTORY PRINTING ------------------------------------------
 
-N_moving_median = 10
+
+N_moving_median = 20
 fundThroughFrame = np.amin(peakLoc_List, axis=0)
 fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
 indexToFreq = Fs / N_fft
@@ -208,12 +220,16 @@ def parabolic_interpolation(alpha, beta, gamma):
 def real_fundamental(peak_freqs, fo):
     peak_freqs2=peak_freqs.copy()
     peak_freqs2.sort()
-    gap = np.min([np.abs(peak_freqs2[0:len(peak_freqs2)-1]-peak_freqs2[1:len(peak_freqs2)])]) # we expect gap = fo if fo is the right fundamental
-    # A few cases : 1) Gap ~ fo, then fo=fo/1   2) Gap ~ fo/n, then fo=fo/n, 3) Gap = 2fo, then min([fo, 1.5fo,..])
+    gap_list = [np.abs(peak_freqs2[0:len(peak_freqs2)-1]-peak_freqs2[1:len(peak_freqs2)])]
+    gap_list=np.array(gap_list)
+    gap_list = gap_list[gap_list>20] #discard gaps under 20Hz, a harmonic won't be under 20Hz above the fundamental
     divisor = 1
-    while np.abs(fo/divisor-gap)>np.abs(fo/(divisor+1)-gap) and divisor<10:
-        divisor = divisor+1
-    fo = fo/divisor
+    if gap_list.size>0:
+        gap = np.min(gap_list) # we expect gap = fo if fo is the right fundamental
+        # A few cases : 1) Gap ~ fo, then fo=fo/1   2) Gap ~ fo/n, then fo=fo/n, 3) Gap = 2fo, then min([fo, 1.5fo,..])
+        while np.abs(fo/divisor-gap)>np.abs(fo/(divisor+1)-gap) and divisor<10:
+            divisor = divisor+1
+        fo = fo/divisor
     return [fo, divisor]
 
 # Width of the research block
@@ -223,15 +239,21 @@ Bw = 2 * MainLobe
 Harmonic_db = np.zeros((n_frames, N_h))
 Harmonic_freq = np.zeros((n_frames, N_h))
 
+# Silence threshold
+silence_thres = 0.9*np.min(X_db)
 
 # Building Harmonic_db and Harmonic_freq (which INCLUDE the fundamental)
 for n in range(n_frames):
 
     # Let's determine what is the real fundamental of our sound, and which harmonic is the one we perceive
-    [fo, divisor] = real_fundamental(peakLoc_List[:,n], fundThroughFrame[n])
-
     # Example : we have a 200Hz voice sound cut at 990Hz, so real_fundamental() finds [fo,divisor] = [200Hz, 5].
     # we now have to search for harmonics [5th, 6th, ..., Nh+5th]
+    if MissingFundSearch:
+        [fo, divisor] = real_fundamental(peakLoc_List[:,n], fundThroughFrameSmoother[n])
+    else :
+        divisor = 1
+        fo = fundThroughFrameSmoother[n]
+
     for h in range(N_h):
 
         # Theoretical harmonic frequency
@@ -267,7 +289,7 @@ for n in range(n_frames):
 
             # Store the interpolated peak
             Harmonic_db[n, h] = int_mag
-            if int_mag < -35 and n > 0:  # same idea than above : -35 are interpreted as silence, the pitch remains the same than before
+            if int_mag < silence_thres and n > 0:  # the pitch remains the same than before if the frame is supposed to be silent
                 Harmonic_freq[n, h] = Harmonic_freq[n - 1, h]
             else:
                 Harmonic_freq[n, h] = indexToFreq * int_loc
@@ -283,14 +305,12 @@ if __name__ == "__main__":
 
     plt.subplot(211)
     plt.title('Fundamental and its harmonics - block research method')
-    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame, color = "black")
     plt.plot(np.arange(len(Harmonic_freq)), Harmonic_freq)
     plt.ylabel("Hz")
     plt.xlabel("Time")
 
     plt.subplot(212)
     plt.title('Smoothed fundamental and its harmonics - block research method')
-    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother, color = "black")
     plt.plot(np.arange(len(Harmonic_freqSmoother)), Harmonic_freqSmoother)
     plt.xlabel("Time")
     plt.ylabel("Hz")
