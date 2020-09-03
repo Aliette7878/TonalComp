@@ -14,7 +14,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 7
+example_number = 9
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -24,20 +24,22 @@ print("Fs: ", Fs)
 # ------------------------------------------ USER SETTINGS ------------------------------------------
 
 # Do you want to look for a missing fundamental ?
-MissingFundSearch = False # Set true for example_9, with the "300Hz_no_fundamental" voice
+MissingFundSearch = True # Set true for example_9, with the "300Hz_no_fundamental" voice
 
 # Bandwidth
-f_low = 100   # will limit d_f, STRONGLY IMPACT THE FINAL RESULT
+f_low = 40   # will limit d_f, strongly impact the final sound
 f_high = 18000 # can not be higher than 19 000 Hz
 
-
+# Possibility to over-write N_fft, and Win_length
 # ------------------------------------------ WINDOWING ------------------------------------------
 
 # Number of peaks to look for the fundamental (high inmpact on the result, the user shouldn't be able to change it)
-numberOfPeaks = 3
+numberOfPeaks = 2
+if MissingFundSearch:
+    numberOfPeaks=4 # We need a good average of the gap between each peaks to estimate the fundamental
 
 # Number of harmonics (including the fundamental)
-N_h = 8
+N_h = 12
 
 # Window type
 Win_type = "hamming"
@@ -45,7 +47,7 @@ Win_type = "hamming"
 L = 4
 
 # Frequency separation
-d_fmin = 30  # DO NOT CHANGE - The frequency resolution is limited, to balance with the temporal resolution
+d_fmin = 20  # DO NOT CHANGE - The frequency resolution is limited, to balance with the temporal resolution
 d_f = f_low
 if f_low < d_fmin:
     d_f = d_fmin
@@ -57,7 +59,7 @@ Win_length = math.floor(L * Fs / d_f) # is higher when d_f is low
 
 # Number of FFT samples
 # N_fft should be at least the window's length, and should respect the JND criteria
-N_fft = 2 ** math.ceil(math.log2(Win_length)) # 2 ** math.ceil(math.log2(Fs / (2 * 3)))) #atually better if not so big
+N_fft = np.max([2 ** math.ceil(math.log2(Win_length)),2 ** math.ceil(math.log2(Fs / (2 * 3)))])
 
 # Nyquist index
 Nyq = math.floor(N_fft / 2)
@@ -217,20 +219,18 @@ def parabolic_interpolation(alpha, beta, gamma):
     return [value, location]
 
 # Check if peaks are spaced by the computed fundamental, or by one of its divisors
-def real_fundamental(peak_freqs, fo):
+def real_fundamental(peak_freqs, foo):
     peak_freqs2=peak_freqs.copy()
     peak_freqs2.sort()
     gap_list = [np.abs(peak_freqs2[0:len(peak_freqs2)-1]-peak_freqs2[1:len(peak_freqs2)])]
     gap_list=np.array(gap_list)
-    gap_list = gap_list[gap_list>20] #discard gaps under 20Hz, a harmonic won't be under 20Hz above the fundamental
+    gap_list = gap_list[gap_list>20] #discard gaps under 20Hz
     divisor = 1
     if gap_list.size>0:
-        gap = np.min(gap_list) # we expect gap = fo if fo is the right fundamental
-        # A few cases : 1) Gap ~ fo, then fo=fo/1   2) Gap ~ fo/n, then fo=fo/n, 3) Gap = 2fo, then min([fo, 1.5fo,..])
-        while np.abs(fo/divisor-gap)>np.abs(fo/(divisor+1)-gap) and divisor<10:
+        gap = np.min(gap_list)
+        while np.abs(foo/divisor-gap)>np.abs(foo/(divisor+1)-gap) and divisor<10:
             divisor = divisor+1
-        fo = fo/divisor
-    return [fo, divisor]
+    return divisor
 
 # Width of the research block
 Bw = 2 * MainLobe
@@ -242,22 +242,27 @@ Harmonic_freq = np.zeros((n_frames, N_h))
 # Silence threshold
 silence_thres = 0.9*np.min(X_db)
 
-# Building Harmonic_db and Harmonic_freq (which INCLUDE the fundamental)
+if MissingFundSearch:
+    Divisor=[]
+    for n in range(n_frames):
+        divisor = real_fundamental(peakLoc_List[:,n], fundThroughFrameSmoother[n])
+        Divisor.append(divisor)
+    DivisorSmoother = movingMedian(Divisor, windowLength=50)
+
+# Building Harmonic_db and Harmonic_freq
 for n in range(n_frames):
 
-    # Let's determine what is the real fundamental of our sound, and which harmonic is the one we perceive
-    # Example : we have a 200Hz voice sound cut at 990Hz, so real_fundamental() finds [fo,divisor] = [200Hz, 5].
-    # we now have to search for harmonics [5th, 6th, ..., Nh+5th]
     if MissingFundSearch:
-        [fo, divisor] = real_fundamental(peakLoc_List[:,n], fundThroughFrameSmoother[n])
+        div=DivisorSmoother[n]
+        fo=fundThroughFrameSmoother[n]/div
     else :
-        divisor = 1
         fo = fundThroughFrameSmoother[n]
+        div=1
 
     for h in range(N_h):
 
         # Theoretical harmonic frequency
-        k_th = math.floor((h+divisor) * fo)
+        k_th = math.floor((h+div) * fo)
 
         # If the theoretical harmonic frequency is in the bandwidth, we can apply the block method
         if k_th * indexToFreq > f_high:
@@ -289,7 +294,7 @@ for n in range(n_frames):
 
             # Store the interpolated peak
             Harmonic_db[n, h] = int_mag
-            if int_mag < silence_thres and n > 0:  # the pitch remains the same than before if the frame is supposed to be silent
+            if int_mag < silence_thres and n > 0:  # the pitch remains the same if a silence is detected
                 Harmonic_freq[n, h] = Harmonic_freq[n - 1, h]
             else:
                 Harmonic_freq[n, h] = indexToFreq * int_loc
