@@ -224,7 +224,7 @@ def real_fundamental(peak_freqs, foo):
     peak_freqs2.sort()
     gap_list = [np.abs(peak_freqs2[0:len(peak_freqs2)-1]-peak_freqs2[1:len(peak_freqs2)])]
     gap_list=np.array(gap_list)
-    gap_list = gap_list[gap_list>20] #discard gaps under 20Hz
+    gap_list = gap_list[gap_list>0.9*f_low/indexToFreq] #discard gaps under f_low
     divisor = 1
     if gap_list.size>0:
         gap = np.min(gap_list)
@@ -265,7 +265,7 @@ for n in range(n_frames):
         k_th = math.floor((h+div) * fo)
 
         # If the theoretical harmonic frequency is in the bandwidth, we can apply the block method
-        if k_th * indexToFreq > f_high:
+        if k_th * indexToFreq > np.min(f_high,0.90*Fs/2):
             Harmonic_db[n, h] = -100
             if n>1:
                 Harmonic_freq[n, h] = Harmonic_freq[n - 1, h]
