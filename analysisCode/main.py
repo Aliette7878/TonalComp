@@ -14,7 +14,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 5
+example_number = 7
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -27,7 +27,7 @@ print("Fs: ", Fs)
 MissingFundSearch = False # Set true for example_9, with the "300Hz_no_fundamental" voice
 
 # Bandwidth
-f_low = 50   # will limit d_f, strongly impact the final sound
+f_low = 255   # will limit d_f, strongly impact the final sound
 f_high = 18000 # can not be higher than 19 000 Hz
 
 # Possibility to over-write N_fft, and Win_length
@@ -252,6 +252,7 @@ if MissingFundSearch:
 
 # Building Harmonic_db and Harmonic_freq
 for n in range(n_frames):
+    Bw = int(0.9 * fundThroughFrame[n] / indexToFreq)
 
     if MissingFundSearch:
         div=DivisorSmoother[n]
@@ -267,7 +268,7 @@ for n in range(n_frames):
 
         # If the theoretical harmonic frequency is in the bandwidth, we can apply the block method
         if k_th * indexToFreq >  np.min([f_high, 0.90 * Fs / 2]):
-            Harmonic_db[n, h] = -100
+            Harmonic_db[n, h] = np.min(X_db)
             if n>1:
                 Harmonic_freq[n, h] = Harmonic_freq[n - 1, h]
             else:
