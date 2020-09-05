@@ -27,7 +27,7 @@ print("Fs: ", Fs)
 MissingFundSearch = False # Set true for example_9, with the "300Hz_no_fundamental" voice
 
 # Bandwidth
-f_low = 100   # will limit d_f, strongly impact the final sound
+f_low = 50   # will limit d_f, strongly impact the final sound
 f_high = 18000 # can not be higher than 19 000 Hz
 
 # Possibility to over-write N_fft, and Win_length
@@ -140,7 +140,7 @@ def flattenMaxPeak(xdB, maxPeakLoc):
     for frameIndex in range(n_frames):
 
         minfreq = int(maxPeakLoc[frameIndex]) - int(maxPeakLoc[frameIndex] / 16)
-        maxfreq = min(n_frames-1,int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 16))
+        maxfreq = min(xdB.shape[0]-1,int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 16))
 
         for freqIndex in range(minfreq, maxfreq):
             xdB[freqIndex, frameIndex] = -80
@@ -406,3 +406,5 @@ wav_file.close()
 print(file_name+" saved")
 
 # ------------------------------------------ SYNTHESIZED SPECTROGRAM ------------------------------------------
+'''
+'''
