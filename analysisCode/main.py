@@ -27,7 +27,7 @@ print("Fs: ", Fs)
 MissingFundSearch = True # Set true for example_9, with the "300Hz_no_fundamental" voice
 
 # Bandwidth
-f_low = 40   # will limit d_f, strongly impact the final sound
+f_low = 100   # will limit d_f, strongly impact the final sound
 f_high = 18000 # can not be higher than 19 000 Hz
 
 # Possibility to over-write N_fft, and Win_length
@@ -265,7 +265,7 @@ for n in range(n_frames):
         k_th = math.floor((h+div) * fo)
 
         # If the theoretical harmonic frequency is in the bandwidth, we can apply the block method
-        if k_th * indexToFreq > np.min(f_high,0.90*Fs/2):
+        if k_th * indexToFreq >  np.min([f_high, 0.90 * Fs / 2]):
             Harmonic_db[n, h] = -100
             if n>1:
                 Harmonic_freq[n, h] = Harmonic_freq[n - 1, h]
