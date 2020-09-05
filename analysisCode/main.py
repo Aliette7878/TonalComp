@@ -14,7 +14,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 9
+example_number = 5
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -24,19 +24,20 @@ print("Fs: ", Fs)
 # ------------------------------------------ USER SETTINGS ------------------------------------------
 
 # Do you want to look for a missing fundamental ?
-MissingFundSearch = True # Set true for example_9, with the "300Hz_no_fundamental" voice
+MissingFundSearch = False # Set true for example_9, with the "300Hz_no_fundamental" voice
 
 # Bandwidth
 f_low = 100   # will limit d_f, strongly impact the final sound
 f_high = 18000 # can not be higher than 19 000 Hz
 
 # Possibility to over-write N_fft, and Win_length
-# ------------------------------------------ WINDOWING ------------------------------------------
 
-# Number of peaks to look for the fundamental (high inmpact on the result, the user shouldn't be able to change it)
-numberOfPeaks = 2
+# Number of peaks to look for the fundamental
+numberOfPeaks = 4 # 2 for the flute, 4 for the harmonica..
 if MissingFundSearch:
     numberOfPeaks=4 # We need a good average of the gap between each peaks to estimate the fundamental
+
+# ------------------------------------------ WINDOWING ------------------------------------------
 
 # Number of harmonics (including the fundamental)
 N_h = 12
@@ -139,7 +140,7 @@ def flattenMaxPeak(xdB, maxPeakLoc):
     for frameIndex in range(n_frames):
 
         minfreq = int(maxPeakLoc[frameIndex]) - int(maxPeakLoc[frameIndex] / 16)
-        maxfreq = int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 16)
+        maxfreq = min(n_frames-1,int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 16))
 
         for freqIndex in range(minfreq, maxfreq):
             xdB[freqIndex, frameIndex] = -80
