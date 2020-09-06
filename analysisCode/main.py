@@ -23,11 +23,12 @@ print("Fs: ", Fs)
 
 # ------------------------------------------ USER SETTINGS ------------------------------------------
 
-# Do you want to look for a missing fundamental ?
-MissingFundSearch = False # Set true for example_9, with the "300Hz_no_fundamental" voice
+ParabolicInterpolation = True
+MissingFundSearch = False # # Do you want to look for a missing fundamental ?
+PhaseConsidering = False # Maybe not a user option
 
 # Bandwidth
-f_low = 255   # will limit d_f, strongly impact the final sound
+f_low = 100   # will limit d_f, strongly impact the final sound
 f_high = 18000 # can not be higher than 19 000 Hz
 
 # Possibility to over-write N_fft, and Win_length
@@ -87,14 +88,15 @@ print("Audio length = " + str(len(audio)))
 
 # ------------------------------------------ STFT ------------------------------------------
 
-X = np.abs(librosa.stft(
+X_complex = librosa.stft(
     audio,
     win_length=Win_length,
     window=Win_type,
     n_fft=N_fft,
     hop_length=Hop_length, )
-)
 
+X=np.abs(X_complex)
+X_phase = np.arctan(X_complex.imag/X_complex.real)
 X_db = librosa.amplitude_to_db(X, ref=np.max)
 
 
@@ -184,6 +186,11 @@ N_moving_median = 20
 fundThroughFrame = np.amin(peakLoc_List, axis=0)
 fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
 indexToFreq = Fs / N_fft
+
+# Phase
+fundPhase=np.zeros(n_frames)
+for n in range(n_frames):
+    fundPhase[n] = X_phase[int(fundThroughFrameSmoother[n]),n]
 
 if __name__ == "__main__":
     plt.figure(figsize=(15, 8))
@@ -284,7 +291,7 @@ for n in range(n_frames):
             k_maxB = np.argmax(Block, axis=0)
 
             # Interpolation
-            if 0 < k_maxB < 2 * (Bw - 1):
+            if 0 < k_maxB < 2 * (Bw - 1) and ParabolicInterpolation:
                 alpha = Block[k_maxB - 1]
                 beta = Block[k_maxB]
                 gamma = Block[k_maxB + 1]
@@ -367,8 +374,16 @@ for m in range(n_frames-1):
         else :
             win_freq=np.ones(Win_length)*Harmonic_freqSmoother[m,i]
 
+        # Interpolation of sines phase
+        win_phase = linear_interpolation(fundPhase[m],fundPhase[m+1],Win_length)
+        #win_phase = fundPhase[m] # without interpolation
+
+
         # Generate the sinusoid
-        win_sine = win_amp*np.sin(2*np.pi*win_time*win_freq/Fs)
+        if PhaseConsidering:
+            win_sine = win_amp*np.sin(2*np.pi*win_time*win_freq/Fs + win_phase) # considering the phase
+        else :
+            win_sine = win_amp*np.sin(2*np.pi*win_time*win_freq/Fs) # not considering the phase
         buffer = buffer+win_sine
 
     # Overlap and add
@@ -384,7 +399,7 @@ out=out*(np.max(audio)-np.min(audio))/(np.max(out)-np.min(out))
 # ------------------------------------------ SOUND - WAV FILE CREATION ------------------------------------------
 
 # Open the wav file
-file_name = "Synthesized_example"+str(example_number)+".wav"
+file_name = "Synthesized_example_"+str(example_number)+".wav"
 wav_file = wave.open(file_name, "w")
 print("Saving " + file_name + "...")
 
