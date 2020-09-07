@@ -28,7 +28,7 @@ MissingFundSearch = False # # Do you want to look for a missing fundamental ?
 PhaseConsidering = True # Maybe not a user option
 
 # Bandwidth
-f_low = 200   # will limit d_f, strongly impact the final sound
+f_low = 100   # will limit d_f, strongly impact the final sound
 f_high = 18000 # can not be higher than 19 000 Hz
 
 # Possibility to over-write N_fft, and Win_length
@@ -452,5 +452,77 @@ for s in out:
 wav_file.close()
 print(file_name+" saved")
 
-# ------------------------------------------ SYNTHESIZED SPECTROGRAM ------------------------------------------
 
+
+
+# ------------------------------------------ SYNTHESIS BASED ON OSCILLATORS ------------------------------------------
+# Generate the interpolated freq
+
+# Time axis
+time=np.arange(0,Hop_length*n_frames)
+
+# db to amplitude
+Harmonic_amp=librosa.db_to_amplitude(Harmonic_db, np.max(X))
+
+# Allocate the output vector
+out_bankosc=np.zeros(n_frames*Hop_length)
+
+for i in range(N_h):
+
+    # Generate the interpolated amp, freq and phase, between each frame
+
+    oscillator = np.zeros(n_frames*Hop_length)
+
+    IntAmp = np.zeros(n_frames*Hop_length)
+    IntPhase = np.zeros(n_frames * Hop_length)
+    IntFreq = np.zeros(n_frames * Hop_length)
+
+    for m in range(n_frames-1):
+        # Interpolation of sines amplitude
+        IntAmp[m*Hop_length:(m+1)*Hop_length ] = linear_interpolation(Harmonic_amp[m,i], Harmonic_amp[m+1,i], Hop_length)
+
+        # Interpolation of sines frequency
+        if abs(Harmonic_freqSmoother[m,i]-Harmonic_freqSmoother[m+1,i])<0.5:
+            IntFreq[m*Hop_length:(m+1)*Hop_length ]=linear_interpolation(Harmonic_freqSmoother[m,i],Harmonic_freqSmoother[m+1,i],Hop_length)
+            #IntFreq[m*Hop_length:(m+1)*Hop_length ]=np.ones(Hop_length)*Harmonic_freqSmoother[m,i]
+
+        else :
+            IntFreq[m*Hop_length:(m+1)*Hop_length ]=np.ones(Hop_length)*Harmonic_freqSmoother[m,i]
+
+        # Interpolation of sines phase
+        IntPhase[m*Hop_length:(m+1)*Hop_length ] = linear_interpolation(fundPhase[m],fundPhase[m+1],Hop_length)
+        
+    oscillator = IntAmp*np.sin(2*np.pi*IntFreq*time/Fs)
+    # bad vibrato doesn't come from the amplitude, but from IntPhase.
+    # It works better without the phase
+        
+    out_bankosc = out_bankosc + oscillator
+
+# Normalizing out
+out_bankosc=out_bankosc*(np.max(audio)-np.min(audio))/(np.max(out_bankosc)-np.min(out_bankosc))
+
+
+# ------------------------------------------ SOUND - WAV FILE CREATION - BASED ON BANK OF OSCILLATORS ------------------------------------------
+
+# Open the wav file
+file_name = "Synthesized_Osc_example_"+str(example_number)+".wav"
+wav_file = wave.open(file_name, "w")
+print("Saving " + file_name + "...")
+
+# Writing parameters
+data_size = len(out_bankosc)
+amp = 64000.0     # multiplier for amplitude
+nchannels = 1
+sampwidth = 2 # 2 for stereo
+comptype = "NONE"
+compname = "not compressed"
+
+# Set writing parameters
+wav_file.setparams((nchannels, sampwidth, Fs, data_size,comptype, compname))
+
+# Write out in the wav file
+for s in out_bankosc:
+    wav_file.writeframes(struct.pack('h', int(s*amp/2)))
+
+wav_file.close()
+print(file_name+" saved")
