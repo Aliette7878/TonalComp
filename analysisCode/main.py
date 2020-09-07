@@ -25,10 +25,10 @@ print("Fs: ", Fs)
 
 ParabolicInterpolation = True
 MissingFundSearch = False # # Do you want to look for a missing fundamental ?
-PhaseConsidering = False # Maybe not a user option
+PhaseConsidering = True # Maybe not a user option
 
 # Bandwidth
-f_low = 100   # will limit d_f, strongly impact the final sound
+f_low = 200   # will limit d_f, strongly impact the final sound
 f_high = 18000 # can not be higher than 19 000 Hz
 
 # Possibility to over-write N_fft, and Win_length
@@ -98,7 +98,6 @@ X_complex = librosa.stft(
 X=np.abs(X_complex)
 X_phase = np.arctan(X_complex.imag/X_complex.real)
 X_db = librosa.amplitude_to_db(X, ref=np.max)
-
 
 # Frequency spectrogram
 
@@ -332,6 +331,38 @@ if __name__ == "__main__":
 
     plt.show()
 
+from matplotlib.collections import LineCollection
+from matplotlib.colors import ListedColormap, BoundaryNorm
+if __name__ == "__main__":
+    fig, axs = plt.subplots(1, 1, sharex=True, sharey=True)
+
+    x = np.arange(len(Harmonic_freqSmoother[:,0]))
+    y = Harmonic_freqSmoother
+    y=y.reshape(y.size)
+
+    dydx = Harmonic_db
+    norm = plt.Normalize(np.min(dydx),np.max(dydx))
+
+    for h in range(N_h):
+        y = Harmonic_freqSmoother[:,h]
+        dydx = Harmonic_db[:,h]
+
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        lc = LineCollection(segments, cmap='Greys', norm=norm)
+        lc.set_array(dydx)
+        lc.set_linewidth(2)
+        line = axs.add_collection(lc)
+        #fig.colorbar(line, ax=axs)
+
+    axs.set_xlim(x.min(), x.max())
+    axs.set_ylim(np.min(Harmonic_freqSmoother), np.max(Harmonic_freqSmoother))
+    plt.title('Smoothed fundamental and its harmonics - colored intensity')
+    plt.xlabel("Time")
+    plt.ylabel("Hz")
+    plt.show()
+
 # ------------------------------------------ PART 2 : SYNTEHSIS ------------------------------------------
 
 # Synthesis parameters
@@ -422,5 +453,4 @@ wav_file.close()
 print(file_name+" saved")
 
 # ------------------------------------------ SYNTHESIZED SPECTROGRAM ------------------------------------------
-'''
-'''
+
