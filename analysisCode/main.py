@@ -19,7 +19,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 8
+example_number = 6
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -30,6 +30,7 @@ print("Fs: ", Fs)
 ParabolicInterpolation = True
 MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 PhaseConsidering = True  # Maybe not a user option
+deletingShortTracks = 1  # If deleting short trajectories
 
 # Bandwidth
 f_low = 100  # will limit d_f, strongly impact the final sound
@@ -41,6 +42,8 @@ f_high = 18000  # can not be higher than 19 000 Hz
 numberOfPeaks = 4  # 2 for the flute, 4 for the harmonica..
 if MissingFundSearch:
     numberOfPeaks = 4  # We need a good average of the gap between each peaks to estimate the fundamental
+
+N_moving_median = 19  # Maybe not a user option
 
 # ------------------------------------------ WINDOWING ------------------------------------------
 
@@ -85,6 +88,9 @@ n_frames = math.floor((len(audio)) / Hop_length) + 1
 # Minimum duration of a trajectory in seconds
 minTrajDuration_seconds = 0.05
 minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) #in frames
+
+# Define the array of amplitudes for the N_h harmonics
+Amplitudes_array = np.ones(N_h) * 0.6
 
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
     print("Peak resolution d_f = " + str(d_f) + " Hz")
@@ -158,17 +164,6 @@ def flattenMaxPeak(xdB, maxPeakLoc):
     return xdB
 
 
-# Median filter on the input segment sig
-def movingMedian(sig, windowLength=5):
-    sigSmooth = np.zeros(len(sig))
-    for i in range(len(sig)):
-        if i < math.floor(windowLength / 2) or i > len(sig) - math.floor(windowLength / 2) - 1:
-            sigSmooth[i] = sig[i]
-        else:
-            sigSmooth[i] = np.median(sig[i - math.floor(windowLength / 2):i + math.floor(windowLength / 2)])
-    return sigSmooth
-
-
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
 
     peakLoc_List = []  # Too constraining to initialise with numpy
@@ -194,9 +189,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 if __name__ == "__main__":
 
-    N_moving_median = 19
     fundThroughFrame = np.amin(peakLoc_List, axis=0)
-    # fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
     fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
     indexToFreq = Fs / N_fft
 
@@ -271,8 +264,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, peakLocList, indexToFreq, mi
         for n in range(n_frames_fhbm):
             divisor = real_fundamental(peakLocList[:, n], fundamentalList[n])
             Divisor.append(divisor)
-        # DivisorSmoother = movingMedian(Divisor, windowLength=50)
-        DivisorSmoother = scipy.signal.medfilt(Divisor, 51)
+        DivisorSmoother = scipy.signal.medfilt(Divisor, N_moving_median)
 
     # Building Harmonic_db and Harmonic_freq
     for n in range(n_frames_fhbm):
@@ -329,11 +321,10 @@ def findHarmonics_blockMethod(xdB, fundamentalList, peakLocList, indexToFreq, mi
 
 
 # Smoothing the harmonics trajectories
-def smootherHarmonics(harmonic_freq, NmoovingMedian):
+def smootherHarmonics(harmonic_freq, NmovingMedian):
     harmonic_freqSmoother = harmonic_freq
     for harmo in range(N_h):
-        # Harmonic_freqSmoother[:, h] = movingMedian(Harmonic_freq[:, h], windowLength=N_moving_median)
-        harmonic_freqSmoother[:, harmo] = scipy.signal.medfilt(Harmonic_freq[:, harmo], N_moving_median)
+        harmonic_freqSmoother[:, harmo] = scipy.signal.medfilt(harmonic_freq[:, harmo], NmovingMedian)
     return harmonic_freqSmoother
 
 
@@ -359,7 +350,6 @@ if __name__ == "__main__":
     plt.tight_layout()
 
     plt.show()
-
 
 
     fig, axs = plt.subplots(1, 1, sharex=True, sharey=True)
@@ -559,62 +549,44 @@ if __name__ == "__main__":
 
 # ------------------------------------------ PART 2 : SYNTHESIS ------------------------------------------
 
-if __name__ == "__main__":  # For now the whole synthesis part doesn't exists outside of main
+def linear_interpolation(a, b, n):
+    s = np.arange(n) * (b - a) / (n - 1) + np.ones(n) * a
+    return s
 
-    # Synthesis window = analysis window
-    WinSynth = np.hamming(Win_length)
 
-    def linear_interpolation(a, b, n):
-        s = np.arange(n) * (b - a) / (n - 1) + np.ones(n) * a
-        return s
+def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tracks):
 
-    # ------------------------------------------ SYNTHESIS BASED ON OSCILLATORS ------------------------------------------
-    # Generate the interpolated freq
+    num_frames = harm_db.shape[0]
+    n_h = harm_db.shape[1]
 
     # Time axis
-    time = np.arange(0, Hop_length * n_frames)
-
-    # If deleting short trajectories
-    deletingShortTracks = 1
+    time = np.arange(0, hop_length * num_frames)
 
     # db to amplitude
-    Harmonic_amp = librosa.db_to_amplitude(Harmonic_db_filtered if deletingShortTracks else Harmonic_db, np.max(X))
-
-    # Frequency
-    Harmonic_freq_final = np.copy(Harmonic_freq_filtered if deletingShortTracks else Harmonic_freqSmoother)
+    harm_amp = librosa.db_to_amplitude(harm_db)  # deleted the part "np.max(X)"
 
     # Allocate the output vector
-    out_bankosc = np.zeros(n_frames * Hop_length)
+    out_bankosc = np.zeros(num_frames * hop_length)
 
-    for i in range(N_h):
+    for i in range(n_h):
 
         # Generate the interpolated amp, freq and phase, between each frame
 
-        oscillator = np.zeros(n_frames * Hop_length)
+        oscillator = np.zeros(num_frames * hop_length)
 
-        IntAmp = np.zeros(n_frames * Hop_length)
-        IntPhase = np.zeros(n_frames * Hop_length)
-        IntFreq = np.zeros(n_frames * Hop_length)
+        IntAmp = np.zeros(num_frames * hop_length)
+        IntPhase = np.zeros(num_frames * hop_length)
+        IntFreq = np.zeros(num_frames * hop_length)
 
-        for m in range(n_frames - 1):
-            # Interpolation of sines amplitude
-            IntAmp[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(Harmonic_amp[m, i], Harmonic_amp[m + 1, i],
-                                                                               Hop_length)
+        for m in range(num_frames - 1):
+            IntAmp[m * hop_length:(m + 1) * hop_length] = linear_interpolation(harm_amp[m, i], harm_amp[m + 1, i],
+                                                                               hop_length)
 
-            # Interpolation of sines frequency
-            if abs(Harmonic_freq_final[m, i] - Harmonic_freq_final[m + 1, i]) < 0.5:
-                IntFreq[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(Harmonic_freq_final[m, i],
-                                                                                    Harmonic_freq_final[m + 1, i],
-                                                                                    Hop_length)
-                # IntFreq[m*Hop_length:(m+1)*Hop_length ]=np.ones(Hop_length)*Harmonic_freqSmoother[m,i]
+            IntFreq[m * hop_length:(m + 1) * hop_length] = np.ones(hop_length) * harm_freq[m, i]
 
-            else:
-                IntFreq[m * Hop_length:(m + 1) * Hop_length] = np.ones(Hop_length) * Harmonic_freq_final[m, i]
+            # IntPhase[m * hop_length:(m + 1) * hop_length] = linear_interpolation(fundPhase[m], fundPhase[m + 1], hop_length)
 
-            # Interpolation of sines phase
-            IntPhase[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(fundPhase[m], fundPhase[m + 1], Hop_length)
-
-        oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / Fs)
+        oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s)
         # bad vibrato doesn't come from the amplitude, but from IntPhase.
         # It works better without the phase
 
@@ -622,97 +594,60 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
 
     # Normalizing out
     out_bankosc = out_bankosc * (np.max(audio) - np.min(audio)) / (np.max(out_bankosc) - np.min(out_bankosc))
+    return out_bankosc
 
-    # ------------------------------------------ SOUND - WAV FILE CREATION - BASED ON BANK OF OSCILLATORS ------------------------------------------
+# ---------------------------------------- ADDITIVE SYNTHESIS: STARTING FROM ONLY FUNDAMENTAL ------------------------------------------
 
-    # Open the wav file
-    file_name = "Synthesized_Osc_example_" + ("filtered" if deletingShortTracks else "") + str(example_number) + ".wav"
-    wav_file = wave.open(file_name, "w")
-    print("Saving " + file_name + "...")
+def oscillators_bank_synthesis_additive(harm_db, harm_freq, f_s, hop_length, amplitude_array):
 
-    # Writing parameters
-    data_size = len(out_bankosc)
-    amp = 64000.0  # multiplier for amplitude
-    nchannels = 1
-    sampwidth = 2  # 2 for stereo
-    comptype = "NONE"
-    compname = "not compressed"
-
-    # Set writing parameters
-    wav_file.setparams((nchannels, sampwidth, Fs, data_size, comptype, compname))
-
-    # Write out in the wav file
-    for s in out_bankosc:
-        wav_file.writeframes(struct.pack('h', int(s * amp / 2)))
-
-    wav_file.close()
-    print(file_name + " saved")
-
-
-
-    # ---------------------------------------- ADDITIVE SYNTHESIS: STARTING FROM ONLY FUNDAMENTAL ------------------------------------------
+    num_frames = harm_db.shape[0]
+    n_h = harm_db.shape[1]
 
     # Time axis
-    time = np.arange(0, Hop_length * n_frames)
+    time = np.arange(0, hop_length * num_frames)
 
-    # If deleting short trajectories
-    deletingShortTracks = 1
+    # Fundamental: db to amplitude
+    harm_amp = librosa.db_to_amplitude(harm_db)  # deleted the part "np.max(X)"
+    fund_amp = harm_amp[:, 0]
 
-    # fundamental amp
-    Fundamental_amp = Harmonic_amp[:, 0]
-
-    # fundamental frequency
-    Fundamental_freq = Harmonic_freq_final[:, 0]
-
-    # define the array of amplitudes for the N_h harmonics
-    Amplitudes_array = np.zeros(N_h)
-    Amplitudes_array[0:12] = [0.8, 1, 0.8, 0.5, 0.6, 0.3, 0.2, 0.4, 0.2, 0.3, 0.2, 0.1] # could be defined by the user
-    print("Amplitudes array: " + str(Amplitudes_array))
+    # Fundamental: frequency
+    fund_freq = harm_freq[:, 0]
 
     # Allocate the output vector
-    out_bankosc = np.zeros(n_frames * Hop_length)
+    out_bankosc = np.zeros(num_frames * hop_length)
 
-    for i in range(N_h):
+    for i in range(n_h):
 
         # Generate the interpolated amp, freq and phase, between each frame
 
-        oscillator = np.zeros(n_frames * Hop_length)
+        oscillator = np.zeros(num_frames * hop_length)
 
-        IntAmp = np.zeros(n_frames * Hop_length)
-        IntPhase = np.zeros(n_frames * Hop_length)
-        IntFreq = np.zeros(n_frames * Hop_length)
+        IntAmp = np.zeros(num_frames * hop_length)
+        IntPhase = np.zeros(num_frames * hop_length)
+        IntFreq = np.zeros(num_frames * hop_length)
 
-        for m in range(n_frames - 1):
-            # Interpolation of sines amplitude
-            IntAmp[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(Fundamental_amp[m], Fundamental_amp[m + 1],
-                                                                               Hop_length) * Amplitudes_array[i]
+        for m in range(num_frames - 1):
+            IntAmp[m * hop_length:(m + 1) * hop_length] = linear_interpolation(fund_amp[m], fund_amp[m + 1],
+                                                                               hop_length) * amplitude_array[i]
 
-            # Interpolation of sines frequency
-            if abs(Fundamental_freq[m] - Fundamental_freq[m + 1]) < 0.5:
-                IntFreq[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(Fundamental_freq[m],
-                                                                                    Fundamental_freq[m + 1],
-                                                                                    Hop_length) * (i + 1)
-                # IntFreq[m*Hop_length:(m+1)*Hop_length ]=np.ones(Hop_length)*Harmonic_freqSmoother[m,i]
+            IntFreq[m * hop_length:(m + 1) * hop_length] = np.ones(hop_length) * fund_freq[m] * (i + 1)
 
-            else:
-                IntFreq[m * Hop_length:(m + 1) * Hop_length] = np.ones(Hop_length) * Fundamental_freq[m] * (i + 1)
+            # IntPhase[m * hop_length:(m + 1) * hop_length] = linear_interpolation(fundPhase[m], fundPhase[m + 1], hop_length)
 
-            # Interpolation of sines phase
-            IntPhase[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(fundPhase[m], fundPhase[m + 1], Hop_length)
-
-        oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / Fs)
-        # bad vibrato doesn't come from the amplitude, but from IntPhase.
-        # It works better without the phase
+        oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s)
 
         out_bankosc = out_bankosc + oscillator
 
     # Normalizing out
     out_bankosc = out_bankosc * (np.max(audio) - np.min(audio)) / (np.max(out_bankosc) - np.min(out_bankosc))
+    return out_bankosc
 
-    # ------------------------------------------ SOUND - WAV FILE CREATION - BASED ON BANK OF OSCILLATORS ------------------------------------------
 
+# ------------------------------------------ SOUND - WAV FILE CREATION ------------------------------------------
+
+def wave_file_creation(ex_number, out_bankosc, f_s, type_additive):
     # Open the wav file
-    file_name = "Synthesized_Osc_additive_example_" + str(example_number) + ".wav"
+    file_name = "Synthesized_Osc_" + ("additive_" if type_additive else "") + "example_" + str(example_number) + ".wav"
     wav_file = wave.open(file_name, "w")
     print("Saving " + file_name + "...")
 
@@ -733,3 +668,23 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
 
     wav_file.close()
     print(file_name + " saved")
+
+
+if __name__ == "__main__":  # For now the whole synthesis part doesn't exists outside of main
+
+    # 1. Part with tracking the original harmonics
+
+    if deletingShortTracks:
+        bankosc = oscillators_bank_synthesis(Harmonic_db_filtered, Harmonic_freq_filtered, Fs, Hop_length, deletingShortTracks)
+    else:
+        bankosc = oscillators_bank_synthesis(Harmonic_db, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks)
+
+    # Writing the file with original harmonics
+    wave_file_creation(example_number, bankosc, Fs, 0)
+
+    # 2. Part with controlling harmonics
+
+    bankosc_add = oscillators_bank_synthesis_additive(Harmonic_db_filtered, Harmonic_freq_filtered, Fs, Hop_length, Amplitudes_array)
+
+    # Writing the file with controlled harmonics
+    wave_file_creation(example_number, bankosc_add, Fs, 1)
