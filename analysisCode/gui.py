@@ -159,12 +159,13 @@ class StartPage(tk.Frame):
 
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
+        self.grid_columnconfigure(0, weight=1)
         label = tk.Label(self, text=("Hi and welcome to TonalComp. \nSelect an audio file, "
                                      "or pick an example"), font=LARGE_FONT)
-        label.pack(pady=10, padx=10)
+        label.grid(row=0, pady=30, sticky="nsew")
 
         listbox = tk.Listbox(self)
-        listbox.pack(side=tk.TOP, fill='x', padx=50, pady=50)
+        listbox.grid(row=1, padx=50, sticky="nsew")
 
         self.selectedPath = ""
 
@@ -178,12 +179,48 @@ class StartPage(tk.Frame):
         listbox.bind("<<ListboxSelect>>", selectItem)
 
         button1 = ttk.Button(self, text="Select your own file file", command=lambda: self.selectFile())
-        button1.pack()
+        button1.grid(row=2)
 
         self.labelText = tk.StringVar()
         self.labelText.set("no audio file selected")
         label2 = tk.Label(self, textvariable=self.labelText, font=NORM_FONT)
-        label2.pack(pady=20, padx=20)
+        label2.grid(row=3, padx=20, sticky="nsew")
+
+        self.paramBg = "grey70"
+        parametersFrame = tk.Frame(self, height=150, background=self.paramBg)
+        parametersFrame.grid(row=4, padx=100, pady=50)
+
+        tk.Label(parametersFrame, text="Analysis parameters", font=LARGE_FONT, background=self.paramBg).grid(row=0,
+                                                                                        sticky="nsew", padx=15, pady=15)
+
+        tk.Label(parametersFrame, text="win_length multiplicator (>1)", background=self.paramBg).grid(row=1, sticky="e")
+        tk.Label(parametersFrame, text="N_fft multiplicator", background=self.paramBg).grid(row=2, sticky="e")
+
+        self.winLength_mul_str = tk.StringVar()
+        self.nfft_mul_str = tk.StringVar()
+        self.fmin_str = tk.StringVar()
+        self.fmax_str = tk.StringVar()
+
+        self.winLength_mul_str.set("1")
+        # choices = ['0.25', '0.5', '1', '2', '4']
+        choices = ['1', '2']
+        self.nfft_mul_str.set('1')
+        self.fmin_str.set("50")
+        self.fmax_str.set("20000")
+        e1 = tk.Entry(parametersFrame, textvariable=self.winLength_mul_str)
+        e2 = tk.OptionMenu(parametersFrame, self.nfft_mul_str, *choices)
+        e1.grid(row=1, column=1, sticky="w", padx=(5, 20))
+        e2.grid(row=2, column=1, sticky="w", padx=(5, 20))
+
+        tk.Label(parametersFrame, text="Bandwidth", font=NORM_FONT, background=self.paramBg).grid(row=3, sticky="e", pady=(10, 0))
+
+        tk.Label(parametersFrame, text="f_min", background=self.paramBg).grid(row=4, sticky="e")
+        tk.Label(parametersFrame, text="f_max (no space)", background=self.paramBg).grid(row=5, sticky="e", pady=(0, 20))
+
+        e3 = tk.Entry(parametersFrame, textvariable=self.fmin_str)
+        e4 = tk.Entry(parametersFrame, textvariable=self.fmax_str)
+        e3.grid(row=4, column=1, sticky="w", padx=(5, 20))
+        e4.grid(row=5, column=1, sticky="w", padx=(5, 20), pady=(0, 20))
 
         def goAction():
             controller.show_frame(LoadingPage)
@@ -191,8 +228,13 @@ class StartPage(tk.Frame):
             global myaudio
             # app.config(cursor="wait") # not working
             time_1 = time.time()
-            analysisParams = audioAnalysis.AnalysisParameters()
-            myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams)
+            try:
+                analysisParams = audioAnalysis.AnalysisParameters(int(self.fmin_str.get()), int(self.fmax_str.get()))
+                myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams, float(self.winLength_mul_str.get()), float(self.nfft_mul_str.get()))
+            except ValueError:
+                controller.show_frame(StartPage)
+                popupmsg("ERROR : Analysis parameters entry format error")
+
             print(f"\n\nComputation in {time.time()-time_1} seconds")
             time_2 = time.time()
             librosa_display_subplt.clear()
@@ -206,8 +248,8 @@ class StartPage(tk.Frame):
             controller.show_frame(MainPage)
             print(f"\n\nCanvas drawing in {time.time()-time_3} seconds")
 
-        self.button3 = ttk.Button(self, text="GO", state=tk.DISABLED, command=goAction)
-        self.button3.pack(side="bottom", pady=50)
+        self.button3 = ttk.Button(self, text="GO", width=50, state=tk.DISABLED, command=goAction)
+        self.button3.grid(row=5, padx=50, pady=50)
 
     def selectFile(self):
         filename = tk.filedialog.askopenfilename(filetypes=(("Audio files (wav,m4a)", "*.wav;*.m4a")

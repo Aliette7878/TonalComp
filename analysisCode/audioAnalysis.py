@@ -9,16 +9,19 @@ from main import peakFinding, flattenMaxPeak
 
 class AudioAnalysis:
 
-    def __init__(self, pathName, analysisParams):
+    def __init__(self, pathName, analysisParams, winLength_mul=1, nfft_mul=1):
         # self.analysisParams = analysisParams      #for the moment not needed outside
         print("Opening " + pathName)
         self.pathName = pathName
         self.audio, self.Fs = librosa.load(pathName, sr=None)       # mp3 not supported yet (can be with ffmpeg)
         print("Fs: ", self.Fs)
         self.win_length = math.floor(analysisParams.L * self.Fs / analysisParams.d_f)
-        self.N_fft = max(2 ** math.ceil(math.log2(self.win_length)), 2 ** math.ceil(math.log2(self.Fs / 3)))
+        self.win_length = math.floor(self.win_length*winLength_mul)
+        # N_fft should be at least the window's length, and should respect the JND criteria
+        self.N_fft = max(2 ** math.ceil(math.log2(self.win_length)), 2 ** math.ceil(math.log2(self.Fs / 2*3)))
+        self.N_fft = math.floor(self.N_fft**nfft_mul)
         self.indexToFreq = self.Fs / self.N_fft
-        self.hop_length = int(self.win_length / analysisParams.hop_ratio)
+        self.hop_length = math.floor(self.win_length / analysisParams.hop_ratio)
 
         self.n_frames = math.floor((len(self.audio)) / self.hop_length) + 1
 
@@ -90,8 +93,9 @@ class AnalysisParameters:
     d_fmin = 30
     hop_ratio = 4
 
-    def __init__(self):
-        self.f_low = 50
+    def __init__(self, fmin, fmax):
+        self.f_low = fmin
+        self.f_high = fmax
         self.N_h = 10
         self.win_type = "hamming"   # Window type
         self.L = 4                  # Smoothness factor of the chosen window's type
