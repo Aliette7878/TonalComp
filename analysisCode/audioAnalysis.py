@@ -2,6 +2,9 @@ import librosa.display
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.signal
+
+from main import peakFinding, flattenMaxPeak
 
 
 class AudioAnalysis:
@@ -61,7 +64,7 @@ class AudioAnalysis:
         N_moving_median = 5
         fundThroughFrame = np.amin(peakLoc_List, axis=0)    # Depending on the number of peaks computed, this can be
         # irrelevant (too much peak = peaks under fundamental, only 1 or 2 peaks can catch harmonics only)
-        fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
+        fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
 
         plt.figure(figsize=(15, 8))
 
@@ -98,48 +101,3 @@ class AnalysisParameters:
             print('\033[93m' + f"WARNING: f_low chosen too low, and therefore changed to {self.d_fmin}")
 
 
-# -------------------------------------------- PEAK TRACKING FUNCTIONS--------------------------------------------------
-
-# peakFinding goes through all frames of xdB. For each frame, it keeps the peaks localization (freq) and magnitude.
-# If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence.
-# The pitch is considered as the same as the precedent frame, but silent.
-def peakFinding(xdB, mainPeak=False):
-    n_frames = xdB.shape[1]
-    peak_loc = np.zeros(n_frames)
-    peak_mag = np.zeros(n_frames)
-
-    for i in range(n_frames):
-        peak_loc[i] = np.argmax(xdB[:, i])
-        peak_mag[i] = xdB[int(peak_loc[i]), i]  # np.argmax return float even though here it's always int.
-        if mainPeak:
-            if peak_mag[i] < -25:  # just an idea to discard peak searching during silence (or low noise..)
-                peak_loc[i] = peak_loc[i - 1]  # silence : don't change pitch interpretation
-        else:
-            if peak_mag[i] < -35:  # We allow harmonics to be 10dB lower than the main peak
-                peak_loc[i] = peak_loc[i - 1]
-
-    return peak_loc, peak_mag
-
-
-# Erase a trajectory of xdb by setting the frequency bin around the input trajectory to -80dB.
-def flattenMaxPeak(xdB, maxPeakLoc):
-    n_frames = xdB.shape[1]
-    for frameIndex in range(n_frames):
-
-        minfreq = int(maxPeakLoc[frameIndex]) - int(maxPeakLoc[frameIndex] / 10)  # Value /10 to adapt to N_fft or f_min
-        maxfreq = int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 10)
-
-        for freqIndex in range(minfreq, maxfreq):
-            xdB[freqIndex, frameIndex] = -80
-    return xdB
-
-
-# Median filter on the input segment sig
-def movingMedian(sig, windowLength=5):
-    sigSmooth = np.zeros(len(sig))
-    for i in range(len(sig)):
-        if i < math.floor(windowLength / 2) or i > len(sig) - math.floor(windowLength / 2) - 1:
-            sigSmooth[i] = sig[i]
-        else:
-            sigSmooth[i] = np.median(sig[i - math.floor(windowLength / 2):i + math.floor(windowLength / 2)])
-    return sigSmooth
