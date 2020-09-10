@@ -559,95 +559,14 @@ if __name__ == "__main__":
 
 # ------------------------------------------ PART 2 : SYNTHESIS ------------------------------------------
 
-
 if __name__ == "__main__":  # For now the whole synthesis part doesn't exists outside of main
-
-    # Synthesis parameters
 
     # Synthesis window = analysis window
     WinSynth = np.hamming(Win_length)
 
-
     def linear_interpolation(a, b, n):
         s = np.arange(n) * (b - a) / (n - 1) + np.ones(n) * a
         return s
-
-
-    # Smallest frequency separation between two notes in the melody
-    delta_notes = 0.95 * abs(d_fmin * 2 ** (1 / 12) - d_fmin)  # taken as (lowest_note + 1/2 tone) - (lowest_note)
-
-    # Time axis
-    win_time = np.arange(0, Win_length)
-
-    # Allocate the output vector
-    out = np.zeros(len(audio))
-
-    # db to amplitude
-    Harmonic_amp = librosa.db_to_amplitude(Harmonic_db, np.max(X))
-
-    # Compute the normalized frequency [0,pi]
-    Harmonic_freqSmootherNorm = 2 * np.pi * Harmonic_freqSmoother / Fs
-
-    # Additive synthesis
-    for m in range(n_frames - 1):
-
-        buffer = np.zeros(Win_length)
-
-        for i in range(N_h):
-
-            # Interpolation of sines amplitude
-            win_amp = linear_interpolation(Harmonic_amp[m, i], Harmonic_amp[m + 1, i], Win_length)
-
-            # Interpolation of sines frequency
-            if abs(Harmonic_freqSmoother[m, i] - Harmonic_freqSmoother[m + 1, i]) < 0.5:
-                win_freq = linear_interpolation(Harmonic_freqSmoother[m, i], Harmonic_freqSmoother[m + 1, i], Win_length)
-            else:
-                win_freq = np.ones(Win_length) * Harmonic_freqSmoother[m, i]
-
-            # Interpolation of sines phase
-            win_phase = linear_interpolation(fundPhase[m], fundPhase[m + 1], Win_length)
-            # win_phase = fundPhase[m] # without interpolation
-
-            # Generate the sinusoid
-            if PhaseConsidering:
-                win_sine = win_amp * np.sin(2 * np.pi * win_time * win_freq / Fs + win_phase)  # considering the phase
-            else:
-                win_sine = win_amp * np.sin(2 * np.pi * win_time * win_freq / Fs)  # not considering the phase
-            buffer = buffer + win_sine
-
-        # Overlap and add
-        ola_indices_a = (m) * Hop_length
-        ola_indices_b = (m) * Hop_length + Win_length
-        y = WinSynth * buffer
-        out[ola_indices_a:ola_indices_b] = out[ola_indices_a:ola_indices_b] + y[0:len(out[ola_indices_a:ola_indices_b])]
-
-    # Normalizing out
-    out = out * (np.max(audio) - np.min(audio)) / (np.max(out) - np.min(out))
-
-    # ------------------------------------------ SOUND - WAV FILE CREATION ------------------------------------------
-
-    # Open the wav file
-    file_name = "Synthesized_example_" + str(example_number) + ".wav"
-    wav_file = wave.open(file_name, "w")
-    print("Saving " + file_name + "...")
-
-    # Writing parameters
-    data_size = len(out)
-    amp = 64000.0  # multiplier for amplitude
-    nchannels = 1
-    sampwidth = 2  # 2 for stereo
-    comptype = "NONE"
-    compname = "not compressed"
-
-    # Set writing parameters
-    wav_file.setparams((nchannels, sampwidth, Fs, data_size, comptype, compname))
-
-    # Write out in the wav file
-    for s in out:
-        wav_file.writeframes(struct.pack('h', int(s * amp / 2)))
-
-    wav_file.close()
-    print(file_name + " saved")
 
     # ------------------------------------------ SYNTHESIS BASED ON OSCILLATORS ------------------------------------------
     # Generate the interpolated freq
