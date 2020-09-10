@@ -187,7 +187,8 @@ peakMag_List = np.array(peakMag_List)
 
 N_moving_median = 20
 fundThroughFrame = np.amin(peakLoc_List, axis=0)
-fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
+# fundThroughFrameSmoother = movingMedian(fundThroughFrame, windowLength=N_moving_median)
+fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, 19)
 indexToFreq = Fs / N_fft
 
 # Phase
@@ -260,7 +261,8 @@ if MissingFundSearch:
     for n in range(n_frames):
         divisor = real_fundamental(peakLoc_List[:, n], fundThroughFrameSmoother[n])
         Divisor.append(divisor)
-    DivisorSmoother = movingMedian(Divisor, windowLength=50)
+    # DivisorSmoother = movingMedian(Divisor, windowLength=50)
+    DivisorSmoother = scipy.signal.medfilt(Divisor, 51)
 
 # Building Harmonic_db and Harmonic_freq
 for n in range(n_frames):
@@ -316,7 +318,8 @@ for n in range(n_frames):
 # Smoothing the harmonics trajectories
 Harmonic_freqSmoother = Harmonic_freq.copy()
 for h in range(N_h):
-    Harmonic_freqSmoother[:, h] = movingMedian(Harmonic_freq[:, h], windowLength=N_moving_median)
+    # Harmonic_freqSmoother[:, h] = movingMedian(Harmonic_freq[:, h], windowLength=N_moving_median)
+    Harmonic_freqSmoother[:, h] = scipy.signal.medfilt(Harmonic_freq[:, h], 19)
 
 # Plot the harmonics trajectories
 if __name__ == "__main__":
