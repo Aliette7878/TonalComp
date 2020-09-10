@@ -15,7 +15,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 7
+example_number = 8
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -465,7 +465,11 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
                 traj_end = m
                 if (traj_end - traj_start >= 0) & (traj_end - traj_start > min_traj_duration):
 
-                    kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
+                    #kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
+                    if (traj_end - traj_start) < 9:
+                        kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
+                    else:
+                        kernel = 9
                     Harm_freq_filtered[traj_start: traj_end + 1, i] =\
                         scipy.signal.medfilt(Harm_freq[traj_start: traj_end + 1, i], kernel)
                     traj_freq[traj_start: traj_end + 1, i] = \
@@ -682,6 +686,92 @@ out_bankosc = out_bankosc * (np.max(audio) - np.min(audio)) / (np.max(out_bankos
 
 # Open the wav file
 file_name = "Synthesized_Osc_example_" + ("filtered" if deletingShortTracks else "") + str(example_number) + ".wav"
+wav_file = wave.open(file_name, "w")
+print("Saving " + file_name + "...")
+
+# Writing parameters
+data_size = len(out_bankosc)
+amp = 64000.0  # multiplier for amplitude
+nchannels = 1
+sampwidth = 2  # 2 for stereo
+comptype = "NONE"
+compname = "not compressed"
+
+# Set writing parameters
+wav_file.setparams((nchannels, sampwidth, Fs, data_size, comptype, compname))
+
+# Write out in the wav file
+for s in out_bankosc:
+    wav_file.writeframes(struct.pack('h', int(s * amp / 2)))
+
+wav_file.close()
+print(file_name + " saved")
+
+
+
+# ---------------------------------------- ADDITIVE SYNTHESIS: STARTING FROM ONLY FUNDAMENTAL ------------------------------------------
+
+# Time axis
+time = np.arange(0, Hop_length * n_frames)
+
+# If deleting short trajectories
+deletingShortTracks = 1
+
+# fundamental amp
+Fundamental_amp = Harmonic_amp[:, 0]
+
+# fundamental frequency
+Fundamental_freq = Harmonic_freq_final[:, 0]
+
+# define the array of amplitudes for the N_h harmonics
+Amplitudes_array = np.zeros(N_h)
+Amplitudes_array[0:12] = [0.8, 1, 0.8, 0.5, 0.6, 0.3, 0.2, 0.4, 0.2, 0.3, 0.2, 0.1] # could be defined by the user
+print("Amplitudes array: " + str(Amplitudes_array))
+
+# Allocate the output vector
+out_bankosc = np.zeros(n_frames * Hop_length)
+
+for i in range(N_h):
+
+    # Generate the interpolated amp, freq and phase, between each frame
+
+    oscillator = np.zeros(n_frames * Hop_length)
+
+    IntAmp = np.zeros(n_frames * Hop_length)
+    IntPhase = np.zeros(n_frames * Hop_length)
+    IntFreq = np.zeros(n_frames * Hop_length)
+
+    for m in range(n_frames - 1):
+        # Interpolation of sines amplitude
+        IntAmp[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(Fundamental_amp[m], Fundamental_amp[m + 1],
+                                                                           Hop_length) * Amplitudes_array[i]
+
+        # Interpolation of sines frequency
+        if abs(Fundamental_freq[m] - Fundamental_freq[m + 1]) < 0.5:
+            IntFreq[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(Fundamental_freq[m],
+                                                                                Fundamental_freq[m + 1],
+                                                                                Hop_length) * (i + 1)
+            # IntFreq[m*Hop_length:(m+1)*Hop_length ]=np.ones(Hop_length)*Harmonic_freqSmoother[m,i]
+
+        else:
+            IntFreq[m * Hop_length:(m + 1) * Hop_length] = np.ones(Hop_length) * Fundamental_freq[m] * (i + 1)
+
+        # Interpolation of sines phase
+        IntPhase[m * Hop_length:(m + 1) * Hop_length] = linear_interpolation(fundPhase[m], fundPhase[m + 1], Hop_length)
+
+    oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / Fs)
+    # bad vibrato doesn't come from the amplitude, but from IntPhase.
+    # It works better without the phase
+
+    out_bankosc = out_bankosc + oscillator
+
+# Normalizing out
+out_bankosc = out_bankosc * (np.max(audio) - np.min(audio)) / (np.max(out_bankosc) - np.min(out_bankosc))
+
+# ------------------------------------------ SOUND - WAV FILE CREATION - BASED ON BANK OF OSCILLATORS ------------------------------------------
+
+# Open the wav file
+file_name = "Synthesized_Osc_additive_example_" + str(example_number) + ".wav"
 wav_file = wave.open(file_name, "w")
 print("Saving " + file_name + "...")
 
