@@ -105,6 +105,7 @@ def ask_peaks_num():
         num.mainloop()
 
 
+
 class TonalCompGui(tk.Tk):
 
     def __init__(self, *args, **kwargs):
@@ -128,6 +129,7 @@ class TonalCompGui(tk.Tk):
         analysismenu = tk.Menu(menubar, tearoff=0)
         analysismenu.add_command(label="show frame", command=ask_frame_num)
         analysismenu.add_command(label="show peaks", command=ask_peaks_num)
+        analysismenu.add_command(label="show final trajectories", command=lambda: myaudio.show_trajectories())
         menubar.add_cascade(label="Analysis", menu=analysismenu)
 
         synthmenu = tk.Menu(menubar, tearoff=0)

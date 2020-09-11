@@ -118,7 +118,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
         hop_length=Hop_length, )
 
     X = np.abs(X_complex)
-    X_phase = np.arctan(X_complex.imag / X_complex.real)
+    # X_phase = np.arctan(X_complex.imag / X_complex.real)
     X_db = librosa.amplitude_to_db(X, ref=np.max)
 
     # Frequency spectrogram
@@ -136,15 +136,12 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 # peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
 # If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
-def peakFinding(xdB, fmin_sample):
+def peakFinding(xdB):
     n_frames_pf = xdB.shape[1]
     peak_loc = np.zeros(n_frames_pf)
     peak_mag = np.zeros(n_frames_pf)
-    minDbValue = np.min(xdB)
 
     for i in range(n_frames_pf):
-        for s in range(fmin_sample):
-            xdB[s, i] = minDbValue
         peak_loc[i] = np.argmax(xdB[:, i])
         peak_mag[i] = xdB[int(peak_loc[i]), i]  # np.argmax return float even though here it's always int.
 
@@ -164,39 +161,36 @@ def flattenMaxPeak(xdB, maxPeakLoc):
     return xdB
 
 
-if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
+def computeAllPeaks(Xdb, numOfPeaks, iToFreq):
 
-    peakLoc_List = []  # Too constraining to initialise with numpy
-    peakMag_List = []
-    indexToFreq = Fs / N_fft
-    fminSamples = math.floor(f_low / indexToFreq)
-    print("f_low in samples = "+str(fminSamples))
-    X_db_actualStep = X_db.copy()
-    X_db_actualStep[0:int(f_low * N_fft / Fs), :] = np.min(
-        X_db)  # To avoid looking for sounds under the lowest sound we want to hear
+    peakLocList = []  # Too constraining to initialise with numpy
+    peakMagList = []
+    X_db_actualStep = Xdb.copy()
+    X_db_actualStep[0:int(f_low / iToFreq), :] = np.min(
+        Xdb)  # To avoid looking for sounds under the lowest sound we want to hear
 
     # for each trajectory : find the maximum trajectory, save it and erase it in xdb.
-    for j in range(numberOfPeaks):
-        Peak_loc, Peak_mag = peakFinding(X_db_actualStep, fminSamples)
-        peakLoc_List.append(Peak_loc)
-        peakMag_List.append(Peak_mag)
+    for j in range(numOfPeaks):
+        Peak_loc, Peak_mag = peakFinding(X_db_actualStep)
+        peakLocList.append(Peak_loc)
+        peakMagList.append(Peak_mag)
         X_db_actualStep = flattenMaxPeak(X_db_actualStep, Peak_loc)
 
-    peakLoc_List = np.array(peakLoc_List)
-    peakMag_List = np.array(peakMag_List)
+    peakLocList = np.array(peakLocList)
+    peakMagList = np.array(peakMagList)
 
-# ------------------------------------------ FUNDAMENTAL TRAJECTORY PRINTING ------------------------------------------
+    return peakLocList, peakMagList
 
-if __name__ == "__main__":
+
+if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
+
+    indexToFreq = Fs / N_fft
+    peakLoc_List, peakMag_List = computeAllPeaks(X_db, numberOfPeaks, indexToFreq)
 
     fundThroughFrame = np.amin(peakLoc_List, axis=0)
     fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
 
-    # Phase
-    fundPhase = np.zeros(n_frames)
-    for n in range(n_frames):
-        fundPhase[n] = X_phase[int(fundThroughFrameSmoother[n]), n]
-
+    # Plotting results
     plt.figure(figsize=(15, 8))
     plt.subplot(311)
 
@@ -256,7 +250,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, peakLocList, indexToFreq, mi
     harmonic_freq = np.zeros((n_frames_fhbm, N_h))
 
     # Silence threshold
-    silence_thres = 0.9 * np.min(X_db)
+    silence_thres = 0.9 * np.min(xdB)
 
     if missingFundSearch:
         Divisor = []
@@ -283,7 +277,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, peakLocList, indexToFreq, mi
 
             # If the theoretical harmonic frequency is in the bandwidth, we can apply the block method
             if k_th * indexToFreq > np.min([f_high, 0.90 * Fs / 2]):
-                harmonic_db[n, h] = np.min(X_db)
+                harmonic_db[n, h] = np.min(xdB)
                 if n > 1:
                     harmonic_freq[n, h] = harmonic_freq[n - 1, h]
                 else:
@@ -293,7 +287,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, peakLocList, indexToFreq, mi
                 # Draw the research block
                 k_inf = max(0, k_th - Bw)
                 k_inf = min(k_inf, Nyq)
-                Block = X_db[k_inf:min(k_inf + 2 * Bw - 1, Nyq), n]
+                Block = xdB[k_inf:min(k_inf + 2 * Bw - 1, Nyq), n]
 
                 maxB = max(Block)
                 k_maxB = np.argmax(Block, axis=0)
@@ -327,7 +321,39 @@ def smootherHarmonics(harmonic_freq, NmovingMedian):
     return harmonic_freqSmoother
 
 
-# Plot the harmonics trajectories
+def plotHarmoIntensity(HarmonicFreqSmoother, HarmonicDB):
+
+    fig, axs = plt.subplots(1, 1, sharex=True, sharey=True)
+
+    x = np.arange(len(HarmonicFreqSmoother[:, 0]))
+    y = HarmonicFreqSmoother
+    y = y.reshape(y.size)
+
+    dydx = HarmonicDB
+    norm = plt.Normalize(np.min(dydx), np.max(dydx))
+
+    for h in range(N_h):
+        y = HarmonicFreqSmoother[:, h]
+        dydx = HarmonicDB[:, h]
+
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        lc = LineCollection(segments, cmap='Greys', norm=norm)
+        lc.set_array(dydx)
+        lc.set_linewidth(2)
+        line = axs.add_collection(lc)
+        # fig.colorbar(line, ax=axs)
+
+    axs.set_xlim(x.min(), x.max())
+    axs.set_ylim(np.min(HarmonicFreqSmoother), np.max(HarmonicFreqSmoother))
+    plt.title('Smoothed fundamental and its harmonics - colored intensity')
+    plt.xlabel("Frames")
+    plt.ylabel("Hz")
+    plt.show()
+
+
+# Compute and plot the harmonics
 if __name__ == "__main__":
     Harmonic_freq, Harmonic_db = findHarmonics_blockMethod(X_db, fundThroughFrameSmoother, peakLoc_List, indexToFreq,
                                                            MissingFundSearch)
@@ -350,36 +376,8 @@ if __name__ == "__main__":
 
     plt.show()
 
-
-    fig, axs = plt.subplots(1, 1, sharex=True, sharey=True)
-
-    x = np.arange(len(Harmonic_freqSmoother[:, 0]))
-    y = Harmonic_freqSmoother
-    y = y.reshape(y.size)
-
-    dydx = Harmonic_db
-    norm = plt.Normalize(np.min(dydx), np.max(dydx))
-
-    for h in range(N_h):
-        y = Harmonic_freqSmoother[:, h]
-        dydx = Harmonic_db[:, h]
-
-        points = np.array([x, y]).T.reshape(-1, 1, 2)
-        segments = np.concatenate([points[:-1], points[1:]], axis=1)
-
-        lc = LineCollection(segments, cmap='Greys', norm=norm)
-        lc.set_array(dydx)
-        lc.set_linewidth(2)
-        line = axs.add_collection(lc)
-        # fig.colorbar(line, ax=axs)
-
-    axs.set_xlim(x.min(), x.max())
-    axs.set_ylim(np.min(Harmonic_freqSmoother), np.max(Harmonic_freqSmoother))
-    plt.title('Smoothed fundamental and its harmonics - colored intensity')
-    plt.xlabel("Frames")
-    plt.ylabel("Hz")
-    plt.show()
-
+    # 2nd plot window: plotting harmonics with colored intensity
+    plotHarmoIntensity(Harmonic_freqSmoother, Harmonic_db)
 
 # ------------------------------------------- TRAJECTORIES ------------------------------------------
 
@@ -488,6 +486,39 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
     return traj, traj_freq, Harm_freq_filtered
 
 
+def plotSmoothTrajIntensity(trajectoriesFreq, trajectoriesDB, miny, maxy):
+
+    # Plot the smoothened trajectories, with intensity
+    fig, axs = plt.subplots(1, 1, sharex=True, sharey=True)
+
+    x = np.arange(len(trajectoriesFreq[:, 0]))
+    y = trajectoriesFreq
+    y = y.reshape(y.size)
+
+    dydx = trajectoriesDB
+    norm = plt.Normalize(np.min(dydx), np.max(dydx))
+
+    for h in range(N_h*2):
+        y = trajectoriesFreq[:, h]
+        y[y<=0] = np.nan
+        dydx = trajectoriesDB[:, h]
+
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        lc = LineCollection(segments, cmap='Blues', norm=norm)
+        lc.set_array(dydx)
+        lc.set_linewidth(2)
+        line = axs.add_collection(lc)
+
+    axs.set_xlim(x.min(), x.max())
+    axs.set_ylim(miny, maxy)
+    plt.title('Smoothed fundamental and its harmonics - after filtering trajectories')
+    plt.xlabel("Frames")
+    plt.ylabel("Hz")
+    plt.show()
+
+
 if __name__ == "__main__":
 
     minAmp_db = np.min(Harmonic_db)
@@ -495,9 +526,8 @@ if __name__ == "__main__":
     # Computing trajectories
     trajectories, trajectories_freq, trajectories_db = build_trajectories(Harmonic_db, Harmonic_freqSmoother)
 
-
     # Plot the trajectories, without representing intensity
-    if (trajectories_freq.shape[1] > 0):
+    if trajectories_freq.shape[1] > 0:
 
         y = np.copy(trajectories_freq)
         y[y <= 0] = np.nan
@@ -509,46 +539,25 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
-
     # Deleting short trajectories (below specific minimum duration)
     trajectories, trajectories_freq, trajectories_db, Harmonic_db_filtered =\
-        delete_short_trajectories(trajectories, trajectories_freq, trajectories_db, Harmonic_db, minTrajDuration,
-                              minAmp_db)
+        delete_short_trajectories(trajectories, trajectories_freq, trajectories_db, Harmonic_db, minTrajDuration
+                                  , minAmp_db)
 
     # Smoothening out frequency variation within each trajectory
     trajectories, trajectories_freq, Harmonic_freq_filtered =\
         smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
 
-
     # Plot the smoothened trajectories, with intensity
-    fig, axs = plt.subplots(1, 1, sharex=True, sharey=True)
+    min_y, max_y = np.min(Harmonic_freq), np.max(Harmonic_freq)
+    plotSmoothTrajIntensity(trajectories_freq, trajectories_db, min_y, max_y)
 
-    x = np.arange(len(trajectories_freq[:, 0]))
-    y = trajectories_freq
-    y = y.reshape(y.size)
 
-    dydx = trajectories_db
-    norm = plt.Normalize(np.min(dydx), np.max(dydx))
 
-    for h in range(N_h*2):
-        y = trajectories_freq[:, h]
-        y[y<=0] = np.nan
-        dydx = trajectories_db[:, h]
 
-        points = np.array([x, y]).T.reshape(-1, 1, 2)
-        segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
-        lc = LineCollection(segments, cmap='Blues', norm=norm)
-        lc.set_array(dydx)
-        lc.set_linewidth(2)
-        line = axs.add_collection(lc)
 
-    axs.set_xlim(x.min(), x.max())
-    axs.set_ylim(np.min(Harmonic_freq), np.max(Harmonic_freq))
-    plt.title('Smoothed fundamental and its harmonics - after filtering trajectories')
-    plt.xlabel("Frames")
-    plt.ylabel("Hz")
-    plt.show()
+
 
 
 # ------------------------------------------ PART 2 : SYNTHESIS ------------------------------------------
