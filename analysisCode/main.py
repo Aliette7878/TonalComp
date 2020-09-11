@@ -19,7 +19,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 5
+example_number = 3
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -90,7 +90,11 @@ minTrajDuration_seconds = 0.2
 minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) #in frames
 
 # Define the array of amplitudes for the N_h harmonics
-Amplitudes_array = np.ones(N_h) * 0.6
+if N_h == 1:
+    Amplitudes_array = 1
+else:
+    Amplitudes_array = np.ones(N_h) * 0.5
+    Amplitudes_array[0] = 1
 
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
     print("Peak resolution d_f = " + str(d_f) + " Hz")
@@ -99,6 +103,8 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     print("Hop length = " + str(Hop_length))
     print("n frames = " + str(n_frames))
     print("Audio length = " + str(len(audio)))
+    print("Min trajectory duration = " + str(minTrajDuration_seconds) + " seconds, " + str(minTrajDuration) + " frames")
+    print("Amplitudes array = " + str(Amplitudes_array))
 
 # ------------------------------------------ STFT ------------------------------------------
 
@@ -390,7 +396,7 @@ if __name__ == "__main__":
 
 def build_trajectories(Harm_db, Harm_freq):
 
-    traj = np.zeros((Harm_db.shape[0], 2 * Harm_db.shape[1]))
+    traj = np.zeros((Harm_db.shape[0], Harm_db.shape[1]))
     traj_freq = np.zeros((Harm_db.shape[0], 2 * Harm_db.shape[1]))
     traj_db = np.zeros((Harm_db.shape[0], 2 * Harm_db.shape[1]))
 
@@ -432,7 +438,7 @@ def delete_short_trajectories(traj, traj_freq, traj_db, Harm_db, min_traj_durati
 
     Harm_db_filtered = np.copy(Harm_db)
 
-    for i in range(int(traj.shape[1] / 2)):
+    for i in range(traj.shape[1]):
 
         for m in range(traj.shape[0] - 1):
 
@@ -455,7 +461,7 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
 
     Harm_freq_filtered = np.copy(Harm_freq)
 
-    for i in range(int(traj.shape[1] / 2)):
+    for i in range(traj.shape[1]):
 
         first_start_found = 0
 
@@ -472,15 +478,18 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
                 if (traj_end - traj_start >= 0) & (traj_end - traj_start > min_traj_duration):
 
                     # kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
-                    if (traj_end - traj_start) < 9:
-                        kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
-                    else:
-                        kernel = 9
-                    Harm_freq_filtered[traj_start: traj_end + 1, i] = \
-                    np.median(Harm_freq[traj_start: traj_end + 1, i])
+                    # if (traj_end - traj_start) < 9:
+                    #    kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
+                    # else:
+                    #    kernel = 9
+                    Harm_freq_filtered[traj_start: traj_end + 1, i] = np.median(Harm_freq[traj_start: traj_end + 1, i])
                     #scipy.signal.medfilt(Harm_freq[traj_start: traj_end + 1, i], kernel)
-                    traj_freq[traj_start: traj_end + 1, i] = \
-                    np.median(traj_freq[traj_start: traj_end + 1, i])
+                    if traj[traj_end, i] == 1:
+                        traj_freq[traj_start: traj_end + 1, 2 * i] =\
+                            np.median(traj_freq[traj_start: traj_end + 1, 2 * i])
+                    elif traj[traj_end, i] == 2:
+                        traj_freq[traj_start: traj_end + 1, 2 * i + 1] =\
+                            np.median(traj_freq[traj_start: traj_end + 1, 2 * i + 1])
                     #scipy.signal.medfilt(traj_freq[traj_start: traj_end + 1, i], kernel)
 
     return traj, traj_freq, Harm_freq_filtered
