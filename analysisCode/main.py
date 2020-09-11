@@ -19,7 +19,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 3
+example_number = 2
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -29,7 +29,6 @@ print("Fs: ", Fs)
 
 ParabolicInterpolation = True
 MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
-PhaseConsidering = True  # Maybe not a user option
 deletingShortTracks = 1  # If deleting short trajectories
 
 # Bandwidth
@@ -86,7 +85,7 @@ Hop_length = int(Win_length / Hop_ratio)
 n_frames = math.floor((len(audio)) / Hop_length) + 1
 
 # Minimum duration of a trajectory in seconds
-minTrajDuration_seconds = 0.2
+minTrajDuration_seconds = 0.1
 minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) #in frames
 
 # Define the array of amplitudes for the N_h harmonics
@@ -118,7 +117,6 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
         hop_length=Hop_length, )
 
     X = np.abs(X_complex)
-    # X_phase = np.arctan(X_complex.imag / X_complex.real)
     X_db = librosa.amplitude_to_db(X, ref=np.max)
 
     # Frequency spectrogram
@@ -205,10 +203,10 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.legend(legendList)
 
     plt.subplot(312)
-    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame)
+    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame, '.')
 
     plt.subplot(313)
-    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother)
+    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother, '.')
 
     plt.show()
 
@@ -363,13 +361,13 @@ if __name__ == "__main__":
 
     plt.subplot(211)
     plt.title('Fundamental and its harmonics - block research method')
-    plt.plot(np.arange(len(Harmonic_freq)), Harmonic_freq)
+    plt.plot(np.arange(len(Harmonic_freq)), Harmonic_freq, '.')
     plt.ylabel("Hz")
     plt.xlabel("Frames")
 
     plt.subplot(212)
     plt.title('Smoothed fundamental and its harmonics - block research method')
-    plt.plot(np.arange(len(Harmonic_freqSmoother)), Harmonic_freqSmoother)
+    plt.plot(np.arange(len(Harmonic_freqSmoother)), Harmonic_freqSmoother, '.')
     plt.xlabel("Frames")
     plt.ylabel("Hz")
     plt.tight_layout()
@@ -559,7 +557,6 @@ if __name__ == "__main__":
 
 
 
-
 # ------------------------------------------ PART 2 : SYNTHESIS ------------------------------------------
 
 def linear_interpolation(a, b, n):
@@ -583,12 +580,11 @@ def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tr
 
     for i in range(n_h):
 
-        # Generate the interpolated amp, freq and phase, between each frame
+        # Generate the interpolated amp and freq, for samples within each frame
 
         oscillator = np.zeros(num_frames * hop_length)
 
         IntAmp = np.zeros(num_frames * hop_length)
-        IntPhase = np.zeros(num_frames * hop_length)
         IntFreq = np.zeros(num_frames * hop_length)
 
         for m in range(num_frames - 1):
@@ -597,11 +593,7 @@ def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tr
 
             IntFreq[m * hop_length:(m + 1) * hop_length] = np.ones(hop_length) * harm_freq[m, i]
 
-            # IntPhase[m * hop_length:(m + 1) * hop_length] = linear_interpolation(fundPhase[m], fundPhase[m + 1], hop_length)
-
         oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s)
-        # bad vibrato doesn't come from the amplitude, but from IntPhase.
-        # It works better without the phase
 
         out_bankosc = out_bankosc + oscillator
 
@@ -631,12 +623,11 @@ def oscillators_bank_synthesis_additive(harm_db, harm_freq, f_s, hop_length, amp
 
     for i in range(n_h):
 
-        # Generate the interpolated amp, freq and phase, between each frame
+        # Generate the interpolated amp and freq, for samples within each frame
 
         oscillator = np.zeros(num_frames * hop_length)
 
         IntAmp = np.zeros(num_frames * hop_length)
-        IntPhase = np.zeros(num_frames * hop_length)
         IntFreq = np.zeros(num_frames * hop_length)
 
         for m in range(num_frames - 1):
@@ -644,8 +635,6 @@ def oscillators_bank_synthesis_additive(harm_db, harm_freq, f_s, hop_length, amp
                                                                                hop_length) * amplitude_array[i]
 
             IntFreq[m * hop_length:(m + 1) * hop_length] = np.ones(hop_length) * fund_freq[m] * (i + 1)
-
-            # IntPhase[m * hop_length:(m + 1) * hop_length] = linear_interpolation(fundPhase[m], fundPhase[m + 1], hop_length)
 
         oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s)
 
