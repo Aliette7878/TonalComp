@@ -18,7 +18,7 @@ class AudioAnalysis:
         self.win_length = math.floor(analysisParams.L * self.Fs / analysisParams.d_f)
         self.win_length = math.floor(self.win_length*winLength_mul)
         # N_fft should be at least the window's length, and should respect the JND criteria
-        self.N_fft = max(2 ** math.ceil(math.log2(self.win_length)), 2 ** math.ceil(math.log2(self.Fs / 2*3)))
+        self.N_fft = max(2 ** math.ceil(math.log2(self.win_length)), 2 ** math.ceil(math.log2(self.Fs / 3)))
         self.N_fft = math.floor(self.N_fft**nfft_mul)
         self.indexToFreq = self.Fs / self.N_fft
         self.hop_length = math.floor(self.win_length / analysisParams.hop_ratio)
@@ -34,12 +34,15 @@ class AudioAnalysis:
         )
         self.X_db = librosa.amplitude_to_db(self.X, ref=np.max)
 
+        self.fminSamples = math.floor(analysisParams.f_low/self.indexToFreq)
+
         print("Peak resolution d_f = " + str(analysisParams.d_f) + " Hz")
         print("N_fft = " + str(self.N_fft))
         print("Window length = " + str(self.win_length))
         print("Hop length = " + str(self.hop_length))
         print("n frames = " + str(self.n_frames))
         print("Audio length = " + str(len(self.audio)))
+        print("f_low in samples = " + str(self.fminSamples))
 
     def showframe(self, frameIndex):
         fig2 = plt.figure(figsize=(20, 15))
@@ -53,10 +56,7 @@ class AudioAnalysis:
 
         # for each trajectory : find the maximum trajectory, save it and erase it in xdb.
         for j in range(numberOfPeaks):
-            if j == 0:
-                Peak_loc, Peak_mag = peakFinding(X_db_actualStep, mainPeak=True)
-            else:
-                Peak_loc, Peak_mag = peakFinding(X_db_actualStep)
+            Peak_loc, Peak_mag = peakFinding(X_db_actualStep, self.fminSamples)
             peakLoc_List.append(Peak_loc)
             # peakMag_List.append(Peak_mag)
             X_db_actualStep = flattenMaxPeak(X_db_actualStep, Peak_loc)

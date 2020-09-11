@@ -203,7 +203,7 @@ class StartPage(tk.Frame):
 
         self.winLength_mul_str.set("1")
         # choices = ['0.25', '0.5', '1', '2', '4']
-        choices = ['1', '2']
+        choices = ['1']
         self.nfft_mul_str.set('1')
         self.fmin_str.set("50")
         self.fmax_str.set("20000")
@@ -229,6 +229,8 @@ class StartPage(tk.Frame):
             # app.config(cursor="wait") # not working
             time_1 = time.time()
             try:
+                print(float(self.winLength_mul_str.get()))
+                print(float(self.nfft_mul_str.get()))
                 analysisParams = audioAnalysis.AnalysisParameters(int(self.fmin_str.get()), int(self.fmax_str.get()))
                 myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams, float(self.winLength_mul_str.get()), float(self.nfft_mul_str.get()))
             except ValueError:

@@ -136,23 +136,17 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 # peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
 # If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
-def peakFinding(xdB, mainPeak=False):
+def peakFinding(xdB, fmin_sample):
     n_frames_pf = xdB.shape[1]
     peak_loc = np.zeros(n_frames_pf)
     peak_mag = np.zeros(n_frames_pf)
+    minDbValue = np.min(xdB)
 
     for i in range(n_frames_pf):
+        for s in range(fmin_sample):
+            xdB[s, i] = minDbValue
         peak_loc[i] = np.argmax(xdB[:, i])
         peak_mag[i] = xdB[int(peak_loc[i]), i]  # np.argmax return float even though here it's always int.
-
-        if mainPeak:
-            if peak_mag[i] < 0.90 * np.min(
-                    xdB):  # just an idea to discard peak searching during silence (or low noise..)
-                peak_loc[i] = peak_loc[i - 1]  # silence : don't change pitch interpretation
-
-        else:
-            if peak_mag[i] < 0.90 * np.min(xdB):
-                peak_loc[i] = peak_loc[i - 1]
 
     return peak_loc, peak_mag
 
@@ -174,16 +168,16 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
     peakLoc_List = []  # Too constraining to initialise with numpy
     peakMag_List = []
+    indexToFreq = Fs / N_fft
+    fminSamples = math.floor(f_low / indexToFreq)
+    print("f_low in samples = "+str(fminSamples))
     X_db_actualStep = X_db.copy()
     X_db_actualStep[0:int(f_low * N_fft / Fs), :] = np.min(
         X_db)  # To avoid looking for sounds under the lowest sound we want to hear
 
     # for each trajectory : find the maximum trajectory, save it and erase it in xdb.
     for j in range(numberOfPeaks):
-        if j == 0:
-            Peak_loc, Peak_mag = peakFinding(X_db_actualStep, mainPeak=True)
-        else:
-            Peak_loc, Peak_mag = peakFinding(X_db_actualStep)
+        Peak_loc, Peak_mag = peakFinding(X_db_actualStep, fminSamples)
         peakLoc_List.append(Peak_loc)
         peakMag_List.append(Peak_mag)
         X_db_actualStep = flattenMaxPeak(X_db_actualStep, Peak_loc)
@@ -197,7 +191,6 @@ if __name__ == "__main__":
 
     fundThroughFrame = np.amin(peakLoc_List, axis=0)
     fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
-    indexToFreq = Fs / N_fft
 
     # Phase
     fundPhase = np.zeros(n_frames)
