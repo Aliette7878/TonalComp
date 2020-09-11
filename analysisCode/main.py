@@ -19,7 +19,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 6
+example_number = 5
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -86,7 +86,7 @@ Hop_length = int(Win_length / Hop_ratio)
 n_frames = math.floor((len(audio)) / Hop_length) + 1
 
 # Minimum duration of a trajectory in seconds
-minTrajDuration_seconds = 0.05
+minTrajDuration_seconds = 0.2
 minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) #in frames
 
 # Define the array of amplitudes for the N_h harmonics
@@ -432,9 +432,9 @@ def delete_short_trajectories(traj, traj_freq, traj_db, Harm_db, min_traj_durati
 
     Harm_db_filtered = np.copy(Harm_db)
 
-    for m in range(traj.shape[0] - 1):
+    for i in range(int(traj.shape[1] / 2)):
 
-        for i in range(int(traj.shape[1] / 2)):
+        for m in range(traj.shape[0] - 1):
 
             if m == 0:
                 traj_start = m
@@ -476,10 +476,12 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
                         kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
                     else:
                         kernel = 9
-                    Harm_freq_filtered[traj_start: traj_end + 1, i] =\
-                        scipy.signal.medfilt(Harm_freq[traj_start: traj_end + 1, i], kernel)
+                    Harm_freq_filtered[traj_start: traj_end + 1, i] = \
+                    np.median(Harm_freq[traj_start: traj_end + 1, i])
+                    #scipy.signal.medfilt(Harm_freq[traj_start: traj_end + 1, i], kernel)
                     traj_freq[traj_start: traj_end + 1, i] = \
-                        scipy.signal.medfilt(traj_freq[traj_start: traj_end + 1, i], kernel)
+                    np.median(traj_freq[traj_start: traj_end + 1, i])
+                    #scipy.signal.medfilt(traj_freq[traj_start: traj_end + 1, i], kernel)
 
     return traj, traj_freq, Harm_freq_filtered
 
@@ -508,12 +510,12 @@ if __name__ == "__main__":
 
     # Deleting short trajectories (below specific minimum duration)
     trajectories, trajectories_freq, trajectories_db, Harmonic_db_filtered =\
-        delete_short_trajectories(trajectories, trajectories_freq, trajectories_db, Harmonic_db, minTrajDuration_seconds,
+        delete_short_trajectories(trajectories, trajectories_freq, trajectories_db, Harmonic_db, minTrajDuration,
                               minAmp_db)
 
     # Smoothening out frequency variation within each trajectory
     trajectories, trajectories_freq, Harmonic_freq_filtered =\
-        smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration_seconds)
+        smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
 
 
     # Plot the smoothened trajectories, with intensity
