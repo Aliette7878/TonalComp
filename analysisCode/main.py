@@ -19,7 +19,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 print(demo_files)
 
 # example_number = int(input(".wav example number = "));
-example_number = 2
+example_number = 5
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -30,6 +30,7 @@ print("Fs: ", Fs)
 ParabolicInterpolation = True
 MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = 1  # If deleting short trajectories
+smoothingTrajectories = True # Smooth trajectories (if false, the cursor is useless and should be disable
 
 # Bandwidth
 f_low = 100  # will limit d_f, strongly impact the final sound
@@ -43,6 +44,9 @@ if MissingFundSearch:
     numberOfPeaks = 4  # We need a good average of the gap between each peaks to estimate the fundamental
 
 N_moving_median = 19  # Maybe not a user option
+
+# Length of the median used on a trajectory
+order_cursorMedian = 1 # in percentage of the trajectory's length
 
 # ------------------------------------------ WINDOWING ------------------------------------------
 
@@ -446,6 +450,18 @@ def delete_short_trajectories(traj, traj_freq, traj_db, Harm_db, min_traj_durati
     return traj, traj_freq, traj_db, Harm_db_filtered
 
 
+def cursorMedian(y,order):
+    order = max(int(order*len(y)),1)
+    z = np.copy(y)
+    k=0
+    while (k+1)*order<len(y): # while the remaining length to average is superior to the order
+        z[k*order:(k+1)*order]= np.median(y[k*order:(k+1)*order])
+        k=k+1
+    z[k*order:len(y)]=np.median(y[k*order:len(y)])
+
+    return(z)
+
+
 def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
 
     Harm_freq_filtered = np.copy(Harm_freq)
@@ -471,14 +487,17 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
                     #    kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
                     # else:
                     #    kernel = 9
-                    Harm_freq_filtered[traj_start: traj_end + 1, i] = np.median(Harm_freq[traj_start: traj_end + 1, i])
+                    Harm_freq_filtered[traj_start: traj_end + 1, i] = cursorMedian(Harm_freq[traj_start: traj_end + 1, i], order_cursorMedian)
+                    #np.median(Harm_freq[traj_start: traj_end + 1, i])
                     #scipy.signal.medfilt(Harm_freq[traj_start: traj_end + 1, i], kernel)
                     if traj[traj_end, i] == 1:
-                        traj_freq[traj_start: traj_end + 1, 2 * i] =\
-                            np.median(traj_freq[traj_start: traj_end + 1, 2 * i])
+                        traj_freq[traj_start: traj_end + 1, 2 * i] = \
+                        cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i], order_cursorMedian)
+                        #np.median(traj_freq[traj_start: traj_end + 1, 2 * i])
                     elif traj[traj_end, i] == 2:
                         traj_freq[traj_start: traj_end + 1, 2 * i + 1] =\
-                            np.median(traj_freq[traj_start: traj_end + 1, 2 * i + 1])
+                        cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i + 1], order_cursorMedian)
+                        #np.median(traj_freq[traj_start: traj_end + 1, 2 * i + 1])
                     #scipy.signal.medfilt(traj_freq[traj_start: traj_end + 1, i], kernel)
 
     return traj, traj_freq, Harm_freq_filtered
@@ -543,8 +562,12 @@ if __name__ == "__main__":
                                   , minAmp_db)
 
     # Smoothening out frequency variation within each trajectory
-    trajectories, trajectories_freq, Harmonic_freq_filtered =\
-        smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
+    if smoothingTrajectories:
+        trajectories, trajectories_freq, Harmonic_freq_filtered =\
+            smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
+    else :
+        Harmonic_freq_filtered=Harmonic_freqSmoother
+
 
     # Plot the smoothened trajectories, with intensity
     min_y, max_y = np.min(Harmonic_freq), np.max(Harmonic_freq)
