@@ -30,7 +30,7 @@ print("Fs: ", Fs)
 ParabolicInterpolation = True
 MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = 1  # If deleting short trajectories
-smoothingTrajectories = True # Smooth trajectories (if false, the cursor is useless and should be disable
+smoothingTrajectories = False   # Smooth trajectories (if false, the cursor is useless and should be disable
 
 # Bandwidth
 f_low = 100  # will limit d_f, strongly impact the final sound
@@ -609,6 +609,7 @@ def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tr
 
         IntAmp = np.zeros(num_frames * hop_length)
         IntFreq = np.zeros(num_frames * hop_length)
+        IntPhase = np.zeros(num_frames * hop_length)
 
         for m in range(num_frames - 1):
             IntAmp[m * hop_length:(m + 1) * hop_length] = linear_interpolation(harm_amp[m, i], harm_amp[m + 1, i],
@@ -616,7 +617,14 @@ def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tr
 
             IntFreq[m * hop_length:(m + 1) * hop_length] = np.ones(hop_length) * harm_freq[m, i]
 
-        oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s)
+            if m == 0:
+                IntPhase[m * hop_length:(m + 1) * hop_length] = np.zeros(hop_length)
+            else:
+                IntPhase[m * hop_length:(m + 1) * hop_length] = IntPhase[(m-1) * hop_length:m * hop_length] + \
+                                (np.ones(hop_length) * 2 * np.pi * harm_freq[m-1, i] * (hop_length+1) * m / f_s) - \
+                                (np.ones(hop_length) * 2 * np.pi * harm_freq[m, i] * (hop_length+1) * m / f_s)
+
+        oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s + IntPhase)
 
         out_bankosc = out_bankosc + oscillator
 
