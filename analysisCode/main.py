@@ -18,8 +18,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 
 print(demo_files)
 
-# example_number = int(input(".wav example number = "));
-example_number = 5
+example_number = 9
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -28,21 +27,22 @@ print("Fs: ", Fs)
 # ------------------------------------------ USER SETTINGS ------------------------------------------
 
 ParabolicInterpolation = True
-MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
-deletingShortTracks = 1  # If deleting short trajectories
+MissingFundSearch = True  # # Do you want to look for a missing fundamental ?
+deletingShortTracks = True  # If deleting short trajectories
 smoothingTrajectories = False   # Smooth trajectories (if false, the cursor is useless and should be disable
 
-# Bandwidth
-f_low = 100  # will limit d_f, strongly impact the final sound
-f_high = 18000  # can not be higher than 19 000 Hz
+# The bandwidth delimits the research of the fundamental and harmonics
+f_low = 170
+f_high = 18000
 
-# Possibility to over-write N_fft, and Win_length
 
+'''
+# NUMBEROFPEAKS PART - SHOULD BE DELETED
 # Number of peaks to look for the fundamental
 numberOfPeaks = 4  # 2 for the flute, 4 for the harmonica..
 if MissingFundSearch:
     numberOfPeaks = 4  # We need a good average of the gap between each peaks to estimate the fundamental
-
+'''
 N_moving_median = 19  # Maybe not a user option
 
 # Length of the median used on a trajectory
@@ -87,6 +87,9 @@ Hop_length = int(Win_length / Hop_ratio)
 
 # Number of frames
 n_frames = math.floor((len(audio)) / Hop_length) + 1
+
+# Convert index of Nfft to frequency
+indexToFreq = Fs / N_fft
 
 # Minimum duration of a trajectory in seconds
 minTrajDuration_seconds = 0.1
@@ -136,6 +139,17 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 # ------------------------------------------ PEAK TRACKING ------------------------------------------
 
+# ------------------------------------------ PEAK TRACKING without a numberOfPeaks ------------------------------------
+
+def findPeaksScipy(X, threshold):
+    x=np.copy(X)
+    x[0:int(threshold)]=np.min(x)       # we don't want to find peaks under f_low
+    height=np.max(x)-30                         # we allow the fundamental to be 30db under the loudest harmonic
+    distance = max(threshold,1)         # we want peaks to be spaced by at least f_low
+    peakIndexs=scipy.signal.find_peaks(x, height=height, threshold=None,distance=distance)[0]
+    return(peakIndexs)
+
+'''
 # peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
 # If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
 def peakFinding(xdB):
@@ -182,11 +196,29 @@ def computeAllPeaks(Xdb, numOfPeaks, iToFreq):
     peakMagList = np.array(peakMagList)
 
     return peakLocList, peakMagList
-
+'''
 
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
 
-    indexToFreq = Fs / N_fft
+# SCIPY PART----------------
+
+    fundThroughFrame = np.zeros(n_frames)
+
+    for m in range(n_frames):
+        fundThroughFrame[m]=findPeaksScipy(X_db[:,m], f_low/indexToFreq)[0]
+
+    plt.figure(figsize=(15, 8))
+
+    plt.subplot(211)
+    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame, '.')
+
+    plt.subplot(212)
+    fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
+    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother, '.')
+    plt.show()
+
+# numberOfPeaks PART----------------
+'''
     peakLoc_List, peakMag_List = computeAllPeaks(X_db, numberOfPeaks, indexToFreq)
 
     fundThroughFrame = np.amin(peakLoc_List, axis=0)
@@ -213,7 +245,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother, '.')
 
     plt.show()
-
+'''
 
 # ------------------------------------------ FIND HARMONICS WITH BLOCKS METHOD ------------------------------------------
 
@@ -228,41 +260,34 @@ def parabolic_interpolation(alpha, beta, gamma):
 
 
 # Check if peaks are spaced by the computed fundamental, or by one of its divisors
-def real_fundamental(peak_freqs, foo):
-    peak_freqs2 = peak_freqs.copy()
-    peak_freqs2.sort()
-    gap_list = [np.abs(peak_freqs2[0:len(peak_freqs2) - 1] - peak_freqs2[1:len(peak_freqs2)])]
-    gap_list = np.array(gap_list)
-    gap_list = gap_list[gap_list > 0.9 * f_low / indexToFreq]  # discard gaps under f_low
+def real_fundamental(peakLoc_List, foo):
     divisor = 1
-    if gap_list.size > 0:
-        gap = np.min(gap_list)
+    if len(peakLoc_List)>1:
+        gap=peakLoc_List[1]-peakLoc_List[0]
         while np.abs(foo / divisor - gap) > np.abs(foo / (divisor + 1) - gap) and divisor < 10:
             divisor = divisor + 1
     return divisor
 
 
-def findHarmonics_blockMethod(xdB, fundamentalList, peakLocList, indexToFreq, missingFundSearch):
-    n_frames_fhbm = xdB.shape[1]
-    # Width of the research block
-    Bw = 2 * MainLobe
+def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSearch):
 
-    # Initialization of storage vectors (which INCLUDE the fundamtental)
-    harmonic_db = np.zeros((n_frames_fhbm, N_h))
-    harmonic_freq = np.zeros((n_frames_fhbm, N_h))
+    # Initialization of storage vectors that include fundamental and harmonics
+    harmonic_db = np.zeros((n_frames, N_h))
+    harmonic_freq = np.zeros((n_frames, N_h))
 
     # Silence threshold
     silence_thres = 0.9 * np.min(xdB)
 
     if missingFundSearch:
         Divisor = []
-        for n in range(n_frames_fhbm):
-            divisor = real_fundamental(peakLocList[:, n], fundamentalList[n])
+        for n in range(n_frames):
+            peakLoc_List = findPeaksScipy(X_db[:, m], f_low / indexToFreq)
+            divisor = real_fundamental(peakLoc_List, fundamentalList[n])
             Divisor.append(divisor)
         DivisorSmoother = scipy.signal.medfilt(Divisor, N_moving_median)
 
     # Building Harmonic_db and Harmonic_freq
-    for n in range(n_frames_fhbm):
+    for n in range(n_frames):
         Bw = int(0.9 * fundamentalList[n] / indexToFreq)
 
         if missingFundSearch:
@@ -357,7 +382,7 @@ def plotHarmoIntensity(HarmonicFreqSmoother, HarmonicDB):
 
 # Compute and plot the harmonics
 if __name__ == "__main__":
-    Harmonic_freq, Harmonic_db = findHarmonics_blockMethod(X_db, fundThroughFrameSmoother, peakLoc_List, indexToFreq,
+    Harmonic_freq, Harmonic_db = findHarmonics_blockMethod(X_db, fundThroughFrameSmoother, indexToFreq,
                                                            MissingFundSearch)
     Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
