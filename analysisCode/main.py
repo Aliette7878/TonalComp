@@ -18,7 +18,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 
 print(demo_files)
 
-example_number = 9
+example_number = 3
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -27,7 +27,7 @@ print("Fs: ", Fs)
 # ------------------------------------------ USER SETTINGS ------------------------------------------
 
 ParabolicInterpolation = True
-MissingFundSearch = True  # # Do you want to look for a missing fundamental ?
+MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = True  # If deleting short trajectories
 smoothingTrajectories = False   # Smooth trajectories (if false, the cursor is useless and should be disable
 
@@ -127,7 +127,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     X_db = librosa.amplitude_to_db(X, ref=np.max)
 
     # Frequency spectrogram
-
+    '''
     plt.figure(figsize=(10, 4))
     librosa.display.specshow(X_db, y_axis='log', x_axis='time', sr=Fs)
 
@@ -136,7 +136,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.tight_layout()
     plt.show()
 
-
+'''
 # ------------------------------------------ PEAK TRACKING ------------------------------------------
 
 # ------------------------------------------ PEAK TRACKING without a numberOfPeaks ------------------------------------
@@ -281,7 +281,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
     if missingFundSearch:
         Divisor = []
         for n in range(n_frames):
-            peakLoc_List = findPeaksScipy(X_db[:, m], f_low / indexToFreq)
+            peakLoc_List = findPeaksScipy(X_db[:, n], f_low / indexToFreq)
             divisor = real_fundamental(peakLoc_List, fundamentalList[n])
             Divisor.append(divisor)
         DivisorSmoother = scipy.signal.medfilt(Divisor, N_moving_median)
@@ -618,23 +618,21 @@ def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tr
     n_h = harm_db.shape[1]
 
     # Time axis
-    time = np.arange(0, hop_length * num_frames)
+    time=np.arange(0, len(audio))
 
     # db to amplitude
     harm_amp = librosa.db_to_amplitude(harm_db)  # deleted the part "np.max(X)"
 
     # Allocate the output vector
-    out_bankosc = np.zeros(num_frames * hop_length)
+    out_bankosc = np.zeros(len(audio))
 
     for i in range(n_h):
 
         # Generate the interpolated amp and freq, for samples within each frame
 
-        oscillator = np.zeros(num_frames * hop_length)
-
-        IntAmp = np.zeros(num_frames * hop_length)
-        IntFreq = np.zeros(num_frames * hop_length)
-        IntPhase = np.zeros(num_frames * hop_length)
+        IntAmp = np.zeros(len(audio))
+        IntFreq = np.zeros(len(audio))
+        IntPhase = np.zeros(len(audio))
 
         for m in range(num_frames - 1):
             IntAmp[m * hop_length:(m + 1) * hop_length] = linear_interpolation(harm_amp[m, i], harm_amp[m + 1, i],
@@ -648,6 +646,10 @@ def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tr
                 IntPhase[m * hop_length:(m + 1) * hop_length] = IntPhase[(m-1) * hop_length:m * hop_length] + \
                                 (np.ones(hop_length) * 2 * np.pi * harm_freq[m-1, i] * (hop_length+1) * m / f_s) - \
                                 (np.ones(hop_length) * 2 * np.pi * harm_freq[m, i] * (hop_length+1) * m / f_s)
+
+        # Last samples
+        IntAmp[(num_frames-1)*hop_length:len(audio)]=linear_interpolation(harm_amp[num_frames-1,i],0,len(audio)-(num_frames-1)*hop_length)
+        IntFreq[(num_frames-1)*hop_length:len(audio)] = harm_freq[num_frames-1, i]
 
         oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s + IntPhase)
 
@@ -665,7 +667,7 @@ def oscillators_bank_synthesis_additive(harm_db, harm_freq, f_s, hop_length, amp
     n_h = harm_db.shape[1]
 
     # Time axis
-    time = np.arange(0, hop_length * num_frames)
+    time=np.arange(0, len(audio))
 
     # Fundamental: db to amplitude
     harm_amp = librosa.db_to_amplitude(harm_db)  # deleted the part "np.max(X)"
@@ -675,22 +677,24 @@ def oscillators_bank_synthesis_additive(harm_db, harm_freq, f_s, hop_length, amp
     fund_freq = harm_freq[:, 0]
 
     # Allocate the output vector
-    out_bankosc = np.zeros(num_frames * hop_length)
+    out_bankosc = np.zeros(len(audio))
 
     for i in range(n_h):
-
         # Generate the interpolated amp and freq, for samples within each frame
 
-        oscillator = np.zeros(num_frames * hop_length)
+        IntAmp = np.zeros(len(audio))
+        IntFreq = np.zeros(len(audio))
 
-        IntAmp = np.zeros(num_frames * hop_length)
-        IntFreq = np.zeros(num_frames * hop_length)
 
         for m in range(num_frames - 1):
             IntAmp[m * hop_length:(m + 1) * hop_length] = linear_interpolation(fund_amp[m], fund_amp[m + 1],
                                                                                hop_length) * amplitude_array[i]
 
             IntFreq[m * hop_length:(m + 1) * hop_length] = np.ones(hop_length) * fund_freq[m] * (i + 1)
+
+        # Last frame : amplitude goes to 0, frequency is kept constant
+        IntAmp[(num_frames-1)*hop_length:len(audio)]=linear_interpolation(fund_amp[num_frames-1],0,len(audio)-(num_frames-1)*hop_length)* amplitude_array[i]
+        IntFreq[(num_frames-1)*hop_length:len(audio)] = fund_freq[num_frames-1]
 
         oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s)
 
