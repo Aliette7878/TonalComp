@@ -29,7 +29,6 @@ print("Fs: ", Fs)
 ParabolicInterpolation = True
 MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = True  # If deleting short trajectories
-smoothingTrajectories = False   # Smooth trajectories (if false, the cursor is useless and should be disable
 
 # The bandwidth delimits the research of the fundamental and harmonics
 f_low = 50
@@ -211,11 +210,18 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
     plt.subplot(211)
     plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame, '.')
+    plt.title('Fundamental found with peak tracking')
+    plt.xlabel("Frames")
+    plt.ylabel('Hz')
 
     plt.subplot(212)
     fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
     plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother, '.')
-    plt.show()
+    plt.title('Smoothed fundamental')
+    plt.xlabel("Frames")
+    plt.ylabel('Hz')
+
+plt.show()
 
 # numberOfPeaks PART----------------
 '''
@@ -556,7 +562,7 @@ def plotSmoothTrajIntensity(trajectoriesFreq, trajectoriesDB, miny, maxy):
 
     axs.set_xlim(x.min(), x.max())
     axs.set_ylim(miny, maxy)
-    plt.title('Smoothed fundamental and its harmonics - after filtering trajectories')
+    plt.title('Smoothed fundamental and harmonics - after filtering short trajectories')
     plt.xlabel("Frames")
     plt.ylabel("Hz")
     plt.show()
@@ -576,7 +582,7 @@ if __name__ == "__main__":
         y[y <= 0] = np.nan
         plt.plot(np.arange(len(y)), y, 'k')
         plt.xlabel('Frames')
-        plt.ylabel('Frequency (Hz)')
+        plt.ylabel('Hz')
         plt.title('Trajectories')
 
     plt.tight_layout()
@@ -587,24 +593,15 @@ if __name__ == "__main__":
         delete_short_trajectories(trajectories, trajectories_freq, trajectories_db, Harmonic_db, minTrajDuration
                                   , minAmp_db)
 
-    # Smoothening out frequency variation within each trajectory
-    if smoothingTrajectories:
-        trajectories, trajectories_freq, Harmonic_freq_filtered =\
-            smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
-    else :
-        Harmonic_freq_filtered=Harmonic_freqSmoother
-
-
-    # Plot the smoothened trajectories, with intensity
+    # Plot the trajectories, with intensity
     min_y, max_y = np.min(Harmonic_freq), np.max(Harmonic_freq)
     plotSmoothTrajIntensity(trajectories_freq, trajectories_db, min_y, max_y)
 
-
-
-
-
-
-
+    # Smoothening out frequency variation within each trajectory
+    trajectories, trajectories_freq, Harmonic_freqMedian =\
+        smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
+    # Harmonic_freqSmoother should be used for resynthesis
+    # Harmonic_freq_Median should be used for fundamental_synthesis
 
 # ------------------------------------------ PART 2 : SYNTHESIS ------------------------------------------
 
@@ -627,8 +624,6 @@ def oscillators_bank_synthesis(harm_amp, harm_freq, f_s, hop_length):
     for i in range(n_h):
 
         # Generate the interpolated amp and freq, for samples within each frame
-
-        oscillator = np.zeros(num_frames * hop_length)
 
         IntAmp = np.zeros(num_frames * hop_length)
         IntFreq = np.zeros(num_frames * hop_length)
@@ -693,6 +688,7 @@ def resynthesis(harm_db, harm_freq, Fs, Hop_length, deletingShortTracks, ex_numb
 
 def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, Fs, Hop_length, deletingShortTracks, ex_number):
 
+
     harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
     harmonic_freq_additive[:, 0] = harm_freq[:, 0]
 
@@ -719,11 +715,11 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
     # 2. Synthesis from fundamental: Part with controlling harmonics
 
     if deletingShortTracks:
-        resynthesis(Harmonic_db_filtered, Harmonic_freq_filtered, Fs, Hop_length, deletingShortTracks, example_number)
-        synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freq_filtered, Amplitudes_array,
+        resynthesis(Harmonic_db_filtered, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks, example_number)
+        synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freqMedian, Amplitudes_array,
                                    Fs, Hop_length, deletingShortTracks, example_number)
     else:
         resynthesis(Harmonic_db, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks, example_number)
-        synthesis_from_fundamental(Harmonic_db, Harmonic_freqSmoother, Amplitudes_array,
+        synthesis_from_fundamental(Harmonic_db, Harmonic_freqMedian, Amplitudes_array,
                                    Fs, Hop_length, deletingShortTracks, example_number)
 
