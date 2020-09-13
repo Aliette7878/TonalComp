@@ -31,7 +31,7 @@ MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = True  # If deleting short trajectories
 
 # The bandwidth delimits the research of the fundamental and harmonics
-f_low = 50
+f_low =0
 f_high = 18000
 
 
@@ -146,6 +146,8 @@ def findPeaksScipy(X, threshold):
     height=np.max(x)-30                         # we allow the fundamental to be 30db under the loudest harmonic
     distance = max(threshold,1)         # we want peaks to be spaced by at least f_low
     peakIndexs=scipy.signal.find_peaks(x, height=height, threshold=None,distance=distance)[0]
+    if len(peakIndexs)== 0:
+        peakIndexs=[0]
     return(peakIndexs)
 
 '''
