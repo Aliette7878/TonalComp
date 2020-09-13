@@ -31,7 +31,7 @@ MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = True  # If deleting short trajectories
 
 # The bandwidth delimits the research of the fundamental and harmonics
-f_low =0
+f_low =100
 f_high = 18000
 
 
@@ -94,12 +94,15 @@ indexToFreq = Fs / N_fft
 minTrajDuration_seconds = 0.1
 minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) #in frames
 
-# Define the array of amplitudes for the N_h harmonics
+# Define the array of amplitudes and frequencies for the N_h harmonics
 if N_h == 1:
     Amplitudes_array = 1
+    Frequencies_array = 0
 else:
     Amplitudes_array = np.ones(N_h) * 0.5
     Amplitudes_array[0] = 1
+    Frequencies_array = np.zeros(N_h)
+    Frequencies_array[1:N_h] = np.ones(N_h-1)
 
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
     print("Peak resolution d_f = " + str(d_f) + " Hz")
@@ -110,6 +113,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     print("Audio length = " + str(len(audio)))
     print("Min trajectory duration = " + str(minTrajDuration_seconds) + " seconds, " + str(minTrajDuration) + " frames")
     print("Amplitudes array = " + str(Amplitudes_array))
+    print("Frequencies array = " + str(Frequencies_array))
 
 # ------------------------------------------ STFT ------------------------------------------
 
@@ -126,7 +130,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     X_db = librosa.amplitude_to_db(X, ref=np.max)
 
     # Frequency spectrogram
-    '''
+
     plt.figure(figsize=(10, 4))
     librosa.display.specshow(X_db, y_axis='log', x_axis='time', sr=Fs)
 
@@ -135,7 +139,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.tight_layout()
     plt.show()
 
-'''
+
 # ------------------------------------------ PEAK TRACKING ------------------------------------------
 
 # ------------------------------------------ PEAK TRACKING without a numberOfPeaks ------------------------------------
@@ -145,10 +149,10 @@ def findPeaksScipy(X, threshold):
     x[0:int(threshold)]=np.min(x)       # we don't want to find peaks under f_low
     height=np.max(x)-30                         # we allow the fundamental to be 30db under the loudest harmonic
     distance = max(threshold,1)         # we want peaks to be spaced by at least f_low
-    peakIndexs=scipy.signal.find_peaks(x, height=height, threshold=None,distance=distance)[0]
-    if len(peakIndexs)== 0:
-        peakIndexs=[0]
-    return(peakIndexs)
+    peakIndexes=scipy.signal.find_peaks(x, height=height, threshold=None,distance=distance)[0]
+    if len(peakIndexes)== 0:
+        peakIndexes=[0]
+    return(peakIndexes)
 
 '''
 # peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
@@ -516,23 +520,15 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
                 traj_end = m
                 if (traj_end - traj_start >= 0) & (traj_end - traj_start > min_traj_duration):
 
-                    # kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
-                    # if (traj_end - traj_start) < 9:
-                    #    kernel = (traj_end - traj_start) if ((traj_end - traj_start) % 2) else (traj_end - traj_start - 1)
-                    # else:
-                    #    kernel = 9
                     Harm_freq_filtered[traj_start: traj_end + 1, i] = cursorMedian(Harm_freq[traj_start: traj_end + 1, i], order_cursorMedian)
-                    #np.median(Harm_freq[traj_start: traj_end + 1, i])
-                    #scipy.signal.medfilt(Harm_freq[traj_start: traj_end + 1, i], kernel)
+
                     if traj[traj_end, i] == 1:
                         traj_freq[traj_start: traj_end + 1, 2 * i] = \
                         cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i], order_cursorMedian)
-                        #np.median(traj_freq[traj_start: traj_end + 1, 2 * i])
+
                     elif traj[traj_end, i] == 2:
                         traj_freq[traj_start: traj_end + 1, 2 * i + 1] =\
                         cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i + 1], order_cursorMedian)
-                        #np.median(traj_freq[traj_start: traj_end + 1, 2 * i + 1])
-                    #scipy.signal.medfilt(traj_freq[traj_start: traj_end + 1, i], kernel)
 
     return traj, traj_freq, Harm_freq_filtered
 
@@ -688,8 +684,7 @@ def resynthesis(harm_db, harm_freq, Fs, Hop_length, deletingShortTracks, ex_numb
     wave_file_creation(ex_number, bankosc, Fs, deletingShortTracks, 0)
 
 
-def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, Fs, Hop_length, deletingShortTracks, ex_number):
-
+def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, freq_array, Fs, Hop_length, deletingShortTracks, ex_number):
 
     harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
     harmonic_freq_additive[:, 0] = harm_freq[:, 0]
@@ -699,9 +694,11 @@ def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, Fs, Hop_len
     harmonic_amp_additive = np.zeros((harm_db.shape[0], harm_db.shape[1]))
     harmonic_amp_additive[:, 0] = harmonic_amp[:, 0]
 
+
+    frequencies_array = []
     for i in range(1, harmonic_amp_additive.shape[1]):
         harmonic_amp_additive[:, i] = harmonic_amp_additive[:, 0] * amplitudes_array[i]
-        harmonic_freq_additive[:, i] = harmonic_freq_additive[:, 0] * (i + 1)
+        harmonic_freq_additive[:, i] = harmonic_freq_additive[:, 0] * (i + 1) * (1 + freq_array[i] * (pow(2,1/24) - 1))
 
     bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, Fs, Hop_length)
 
@@ -718,10 +715,9 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
 
     if deletingShortTracks:
         resynthesis(Harmonic_db_filtered, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks, example_number)
-        synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freqMedian, Amplitudes_array,
-                                   Fs, Hop_length, deletingShortTracks, example_number)
+
     else:
         resynthesis(Harmonic_db, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks, example_number)
-        synthesis_from_fundamental(Harmonic_db, Harmonic_freqMedian, Amplitudes_array,
-                                   Fs, Hop_length, deletingShortTracks, example_number)
 
+    synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freqMedian, Amplitudes_array, Frequencies_array,
+                               Fs, Hop_length, deletingShortTracks, example_number)
