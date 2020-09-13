@@ -18,7 +18,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 
 print(demo_files)
 
-example_number = 6
+example_number = 7
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -29,19 +29,13 @@ print("Fs: ", Fs)
 ParabolicInterpolation = True
 MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = True  # If deleting short trajectories
+envelopeADSR = True
 
 # The bandwidth delimits the research of the fundamental and harmonics
 f_low = 170
 f_high = 18000
 
 
-'''
-# NUMBEROFPEAKS PART - SHOULD BE DELETED
-# Number of peaks to look for the fundamental
-numberOfPeaks = 4  # 2 for the flute, 4 for the harmonica..
-if MissingFundSearch:
-    numberOfPeaks = 4  # We need a good average of the gap between each peaks to estimate the fundamental
-'''
 N_moving_median = 19  # Maybe not a user option
 
 # Length of the median used on a trajectory
@@ -94,6 +88,10 @@ indexToFreq = Fs / N_fft
 minTrajDuration_seconds = 0.1
 minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) # in frames
 
+attack_sec = 0.2
+decay_sec = 0.1
+sustain_amp = 0.01
+
 # Define the array of amplitudes and frequencies for the N_h harmonics
 if N_h == 1:
     Amplitudes_array = 1
@@ -102,7 +100,7 @@ else:
     Amplitudes_array = np.ones(N_h) * 0.5
     Amplitudes_array[0] = 1
     Frequencies_array = np.zeros(N_h)
-    Frequencies_array[1:N_h] = np.ones(N_h-1)
+    Frequencies_array[1:N_h] = np.zeros(N_h-1)
 
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
     print("Peak resolution d_f = " + str(d_f) + " Hz")
@@ -142,8 +140,6 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 # ------------------------------------------ PEAK TRACKING ------------------------------------------
 
-# ------------------------------------------ PEAK TRACKING without a numberOfPeaks ------------------------------------
-
 def findPeaksScipy(X, threshold):
     x = np.copy(X)
     x[0:int(threshold)] = np.min(x)       # we don't want to find peaks under f_low
@@ -155,54 +151,6 @@ def findPeaksScipy(X, threshold):
     return peakIndexes
 
 
-'''
-# peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
-# If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
-def peakFinding(xdB):
-    n_frames_pf = xdB.shape[1]
-    peak_loc = np.zeros(n_frames_pf)
-    peak_mag = np.zeros(n_frames_pf)
-
-    for i in range(n_frames_pf):
-        peak_loc[i] = np.argmax(xdB[:, i])
-        peak_mag[i] = xdB[int(peak_loc[i]), i]  # np.argmax return float even though here it's always int.
-
-    return peak_loc, peak_mag
-
-
-# Erase a trajectory of xdb by setting the frequency bin around the input trajectory to -80dB.
-def flattenMaxPeak(xdB, maxPeakLoc):
-    n_frames_fmp = xdB.shape[1]
-    for frameIndex in range(n_frames_fmp):
-
-        minfreq = int(maxPeakLoc[frameIndex]) - int(maxPeakLoc[frameIndex] / 16)
-        maxfreq = min(xdB.shape[0] - 1, int(maxPeakLoc[frameIndex]) + int(maxPeakLoc[frameIndex] / 16))
-
-        for freqIndex in range(minfreq, maxfreq):
-            xdB[freqIndex, frameIndex] = -80
-    return xdB
-
-
-def computeAllPeaks(Xdb, numOfPeaks, iToFreq):
-
-    peakLocList = []  # Too constraining to initialise with numpy
-    peakMagList = []
-    X_db_actualStep = Xdb.copy()
-    X_db_actualStep[0:int(f_low / iToFreq), :] = np.min(
-        Xdb)  # To avoid looking for sounds under the lowest sound we want to hear
-
-    # for each trajectory : find the maximum trajectory, save it and erase it in xdb.
-    for j in range(numOfPeaks):
-        Peak_loc, Peak_mag = peakFinding(X_db_actualStep)
-        peakLocList.append(Peak_loc)
-        peakMagList.append(Peak_mag)
-        X_db_actualStep = flattenMaxPeak(X_db_actualStep, Peak_loc)
-
-    peakLocList = np.array(peakLocList)
-    peakMagList = np.array(peakMagList)
-
-    return peakLocList, peakMagList
-'''
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
 
     # SCIPY PART----------------
@@ -227,36 +175,6 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.xlabel("Frames")
     plt.ylabel('Hz')
     plt.show()
-
-# numberOfPeaks PART----------------
-'''
-    peakLoc_List, peakMag_List = computeAllPeaks(X_db, numberOfPeaks, indexToFreq)
-
-    fundThroughFrame = np.amin(peakLoc_List, axis=0)
-    fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
-
-    # Plotting results
-    plt.figure(figsize=(15, 8))
-    plt.subplot(311)
-
-    symbolList = ['o', 'x', 'v', '*', 'h', '+', 'd', '^']
-    legendList = []
-
-    for j in range(numberOfPeaks):
-        pkloc = peakLoc_List[j]
-        plt.plot(np.arange(len(pkloc)), indexToFreq * pkloc, symbolList[j % len(symbolList)])
-        legendList.append("peak " + str(j + 1))
-
-    plt.legend(legendList)
-
-    plt.subplot(312)
-    plt.plot(np.arange(len(fundThroughFrame)), indexToFreq * fundThroughFrame, '.')
-
-    plt.subplot(313)
-    plt.plot(np.arange(len(fundThroughFrameSmoother)), indexToFreq * fundThroughFrameSmoother, '.')
-
-    plt.show()
-'''
 
 # ------------------------------------------ FIND HARMONICS WITH BLOCKS METHOD -----------------------------------------
 
@@ -608,7 +526,10 @@ if __name__ == "__main__":
 
 
 def linear_interpolation(a, b, n):
-    s = np.arange(n) * (b - a) / (n - 1) + np.ones(n) * a
+    if n-1:
+        s = np.arange(n) * (b - a) / (n - 1) + np.ones(n) * a
+    else:
+        s = a
     return s
 
 
@@ -652,6 +573,50 @@ def oscillators_bank_synthesis(harm_amp, harm_freq, f_s, hop_length):
     out_bankosc = out_bankosc * (np.max(audio) - np.min(audio)) / (np.max(out_bankosc) - np.min(out_bankosc))
     return out_bankosc
 
+
+def adsr_amp(traj, harm_amp, attack, decay, sustain):
+
+    harm_amp_adsr = np.copy(harm_amp)
+    attack_frames = round(attack * Fs / Hop_length)
+    decay_frames = round(decay * Fs / Hop_length)
+
+    for i in range(traj.shape[1]):
+
+        first_start_found = 0
+
+        for m in range(traj.shape[0] - 1):
+
+            if (m == 0) & (traj[m, i] != 0):
+                traj_start = m
+                first_start_found = 1
+            elif (traj[m, i] != 0) & (traj[m, i] != traj[m - 1, i]):
+                traj_start = m
+                first_start_found = 1
+            if first_start_found & (traj[m, i] != traj[m + 1, i]):
+                traj_end = m
+                if (traj_end - traj_start >= 0) & (traj[traj_start, i] != 0):
+
+                    max_value_amp = np.max(harm_amp[traj_start: traj_end + 1, i])
+                    if traj_start + attack_frames < traj_end:
+                        harm_amp_adsr[traj_start: traj_start + attack_frames + 1, i] =\
+                            linear_interpolation(0.1, max_value_amp, attack_frames + 1)
+
+                        if traj_start + attack_frames + decay_frames < traj_end:
+                            harm_amp_adsr[traj_start + attack_frames + 1: traj_start + attack_frames + decay_frames + 1, i] = \
+                                linear_interpolation(max_value_amp, sustain, decay_frames)
+                            harm_amp_adsr[traj_start + attack_frames + decay_frames + 1: traj_end + 1, i] = \
+                                np.ones(traj_end - traj_start - attack_frames - decay_frames) * sustain;
+
+                        else:
+                            harm_amp_adsr[traj_start + attack_frames + 1: traj_end + 1, i] =\
+                                linear_interpolation(max_value_amp, sustain, traj_end - traj_start - attack_frames)
+                    else:
+                        harm_amp_adsr[traj_start: traj_end + 1, i] = \
+                            linear_interpolation(0.1, max_value_amp, traj_end - traj_start + 1)
+
+    return harm_amp_adsr
+
+
 # ------------------------------------------ SOUND - WAV FILE CREATION ------------------------------------------
 
 
@@ -679,16 +644,17 @@ def wave_file_creation(out_bankosc, f_s, file_path):
     print(file_path + " saved")
 
 
-def resynthesis(harm_db, harm_freq, fs, hop_length, deletingShortTracks, ex_number):
+def resynthesis(harm_db, harm_freq, fs, hop_length, deleting_short_tracks, ex_number):
     harm_amp = librosa.db_to_amplitude(harm_db)
     bankosc = oscillators_bank_synthesis(harm_amp, harm_freq, fs, hop_length)
 
-    file_path = "..\\synthetised_sound\\Synthesized_" + ("smooth_" if deletingShortTracks else "") + \
+    file_path = "..\\synthesized_sound\\Synthesized_" + ("smooth_" if deleting_short_tracks else "") + \
                 "example_" + str(ex_number) + ".wav"
     wave_file_creation(bankosc, fs, file_path)
 
 
-def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, freq_array, fs, hop_length, deletingShortTracks, ex_number):
+def synthesis_from_fundamental(harm_db, harm_freq, traj, amplitudes_array, freq_array, attack,
+                               decay, sustain, fs, hop_length, deleting_short_tracks, envelope_adsr, ex_number):
 
     harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
     harmonic_freq_additive[:, 0] = harm_freq[:, 0]
@@ -698,17 +664,19 @@ def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, freq_array,
     harmonic_amp_additive = np.zeros((harm_db.shape[0], harm_db.shape[1]))
     harmonic_amp_additive[:, 0] = harmonic_amp[:, 0]
 
-    frequencies_array = []
     for i in range(1, harmonic_amp_additive.shape[1]):
         harmonic_amp_additive[:, i] = harmonic_amp_additive[:, 0] * amplitudes_array[i]
         harmonic_freq_additive[:, i] = harmonic_freq_additive[:, 0] * (i + 1) * (1 + freq_array[i] * (pow(2,1/24) - 1))
 
+    if envelope_adsr:
+        harmonic_amp_additive = adsr_amp(traj, harmonic_amp_additive, attack, decay, sustain)
+
     bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, fs, hop_length)
 
     # Writing the file with controlled harmonics
-    file_path = "..\\synthetised_sound\\Synthesized_" + ("smooth_" if deletingShortTracks else "") + \
+    file_path = "..\\synthesized_sound\\Synthesized_" + ("smooth_" if deleting_short_tracks else "") + \
                 "additive_example_" + str(ex_number) + ".wav"
-    wave_file_creation(bankosc, Fs, file_path)  # for now we assume that tracks are deleted for type additive
+    wave_file_creation(bankosc, fs, file_path)  # for now we assume that tracks are deleted for type additive
 
 
 if __name__ == "__main__":  # For now the whole synthesis part doesn't exists outside of main
@@ -723,5 +691,5 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
     else:
         resynthesis(Harmonic_db, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks, example_number)
 
-    synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freqMedian, Amplitudes_array, Frequencies_array,
-                               Fs, Hop_length, deletingShortTracks, example_number)
+    synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freqMedian, trajectories, Amplitudes_array, Frequencies_array,
+                               attack_sec, decay_sec, sustain_amp, Fs, Hop_length, deletingShortTracks, envelopeADSR, example_number)
