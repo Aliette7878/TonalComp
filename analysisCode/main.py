@@ -145,14 +145,16 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 # ------------------------------------------ PEAK TRACKING without a numberOfPeaks ------------------------------------
 
 def findPeaksScipy(X, threshold):
-    x=np.copy(X)
-    x[0:int(threshold)]=np.min(x)       # we don't want to find peaks under f_low
+    x = np.copy(X)
+    x[0:int(threshold)] = np.min(x)       # we don't want to find peaks under f_low
     height = max(np.max(x)-30, -70)     # we allow the fundamental to be 30db under the loudest harmonic, or not lower than -70
-    distance = max(threshold,1)         # we want peaks to be spaced by at least f_low
-    peakIndexes=scipy.signal.find_peaks(x, height=height, threshold=None,distance=distance)[0]
-    if len(peakIndexes)== 0:
-        peakIndexes=[0]
-    return(peakIndexes)
+    distance = max(threshold, 1)         # we want peaks to be spaced by at least f_low
+    peakIndexes = scipy.signal.find_peaks(x, height=height, threshold=None, distance=distance)[0]
+    if len(peakIndexes) == 0:
+        peakIndexes = [0]
+    return peakIndexes
+
+
 '''
 # peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
 # If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
@@ -201,16 +203,14 @@ def computeAllPeaks(Xdb, numOfPeaks, iToFreq):
 
     return peakLocList, peakMagList
 '''
-
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
 
-# SCIPY PART----------------
+    # SCIPY PART----------------
 
     fundThroughFrame = np.zeros(n_frames)
 
     for m in range(n_frames):
         fundThroughFrame[m]=findPeaksScipy(X_db[:, m], 0.9 * f_low/ indexToFreq)[0]
-
 
     plt.figure(figsize=(15, 8))
 
@@ -258,7 +258,8 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.show()
 '''
 
-# ------------------------------------------ FIND HARMONICS WITH BLOCKS METHOD ------------------------------------------
+# ------------------------------------------ FIND HARMONICS WITH BLOCKS METHOD -----------------------------------------
+
 
 # The parabola is given by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma
 def parabolic_interpolation(alpha, beta, gamma):
@@ -301,7 +302,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
     # Building Harmonic_db and Harmonic_freq
     for n in range(nframes):
         # We want to be able to compute interpolation, so at least size>3, and we want an odd number
-        Bw = max(4,2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq))
+        Bw = max(4, 2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq))
 
         if missingFundSearch:
             div = DivisorSmoother[n]
@@ -488,16 +489,16 @@ def delete_short_trajectories(traj, traj_freq, traj_db, Harm_db, min_traj_durati
     return traj, traj_freq, traj_db, Harm_db_filtered
 
 
-def cursorMedian(y,order):
-    order = max(int(order*len(y)),1)
+def cursorMedian(y, order):
+    order = max(int(order*len(y)), 1)
     z = np.copy(y)
-    k=0
-    while (k+1)*order<len(y): # while the remaining length to average is superior to the order
-        z[k*order:(k+1)*order]= np.median(y[k*order:(k+1)*order])
-        k=k+1
-    z[k*order:len(y)]=np.median(y[k*order:len(y)])
+    k = 0
+    while (k+1)*order < len(y):     # while the remaining length to average is superior to the order
+        z[k*order:(k+1)*order] = np.median(y[k*order:(k+1)*order])
+        k = k+1
+    z[k*order:len(y)] = np.median(y[k*order:len(y)])
 
-    return(z)
+    return z
 
 
 def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
@@ -547,7 +548,7 @@ def plotSmoothTrajIntensity(trajectoriesFreq, trajectoriesDB, miny, maxy):
 
     for h in range(N_h*2):
         y = trajectoriesFreq[:, h]
-        y[y<=0] = np.nan
+        y[y <= 0] = np.nan
         dydx = trajectoriesDB[:, h]
 
         points = np.array([x, y]).T.reshape(-1, 1, 2)
@@ -680,7 +681,7 @@ def wave_file_creation(out_bankosc, f_s, file_path):
 
 def resynthesis(harm_db, harm_freq, fs, hop_length, deletingShortTracks, ex_number):
     harm_amp = librosa.db_to_amplitude(harm_db)
-    bankosc = oscillators_bank_synthesis(harm_amp, harm_freq, Fs, hop_length)
+    bankosc = oscillators_bank_synthesis(harm_amp, harm_freq, fs, hop_length)
 
     file_path = "..\\synthetised_sound\\Synthesized_" + ("smooth_" if deletingShortTracks else "") + \
                 "example_" + str(ex_number) + ".wav"
