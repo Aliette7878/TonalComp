@@ -18,7 +18,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 
 print(demo_files)
 
-example_number = 3
+example_number = 6
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -31,7 +31,7 @@ MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = True  # If deleting short trajectories
 
 # The bandwidth delimits the research of the fundamental and harmonics
-f_low =100
+f_low =170
 f_high = 18000
 
 
@@ -147,13 +147,12 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 def findPeaksScipy(X, threshold):
     x=np.copy(X)
     x[0:int(threshold)]=np.min(x)       # we don't want to find peaks under f_low
-    height=np.max(x)-30                         # we allow the fundamental to be 30db under the loudest harmonic
+    height = max(np.max(x)-30, -70)     # we allow the fundamental to be 30db under the loudest harmonic, or not lower than -70
     distance = max(threshold,1)         # we want peaks to be spaced by at least f_low
     peakIndexes=scipy.signal.find_peaks(x, height=height, threshold=None,distance=distance)[0]
     if len(peakIndexes)== 0:
         peakIndexes=[0]
     return(peakIndexes)
-
 '''
 # peakFinding goes through all frames of xdB. For each frame, it keeps the loudest frequency's localization and magnitude.
 # If the peak's magnitude is too low (<-25 or -35), it is interpreted as a silence. The pitch is considered as the same as the precedent frame, but silent.
@@ -210,7 +209,8 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     fundThroughFrame = np.zeros(n_frames)
 
     for m in range(n_frames):
-        fundThroughFrame[m]=findPeaksScipy(X_db[:,m], f_low/indexToFreq)[0]
+        fundThroughFrame[m]=findPeaksScipy(X_db[:, m], 0.9 * f_low/ indexToFreq)[0]
+
 
     plt.figure(figsize=(15, 8))
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.xlabel("Frames")
     plt.ylabel('Hz')
 
-plt.show()
+    plt.show()
 
 # numberOfPeaks PART----------------
 '''
@@ -600,6 +600,8 @@ if __name__ == "__main__":
         smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
     # Harmonic_freqSmoother should be used for resynthesis
     # Harmonic_freq_Median should be used for fundamental_synthesis
+
+    plotSmoothTrajIntensity(trajectories_freq, trajectories_db, min_y, max_y)
 
 # ------------------------------------------ PART 2 : SYNTHESIS ------------------------------------------
 
