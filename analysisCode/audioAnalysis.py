@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import scipy.signal
 
 from main import findPeaksScipy, findHarmonics_blockMethod, smootherHarmonics, build_trajectories, \
-    delete_short_trajectories, smooth_trajectories_freq, plotSmoothTrajIntensity, N_moving_median, minTrajDuration
+    delete_short_trajectories, smooth_trajectories_freq, plotSmoothTrajIntensity, oscillators_bank_synthesis, \
+    wave_file_creation, N_moving_median, minTrajDuration
 
 
 class AudioAnalysis:
@@ -45,6 +46,8 @@ class AudioAnalysis:
 
         self.fundThroughFrame = None
         self.fundThroughFrameSmoother = None
+        self.Harmonic_freqSmoother = None
+        self.Harmonic_db_filtered = None
 
     def showframe(self, frameIndex):
         fig2 = plt.figure(figsize=(20, 15))
@@ -84,25 +87,23 @@ class AudioAnalysis:
                 self.fundThroughFrame[m] = findPeaksScipy(self.X_db[:, m], self.analysisParams.f_low / self.indexToFreq)[0]
             self.fundThroughFrameSmoother = scipy.signal.medfilt(self.fundThroughFrame, N_moving_median)
 
-
         #compute harmonics
         Harmonic_freq, Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother, self.indexToFreq, False)
-        Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
-
+        self.Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
         # Computing trajectories
-        trajectories, trajectories_freq, trajectories_db = build_trajectories(Harmonic_db, Harmonic_freqSmoother)
+        trajectories, trajectories_freq, trajectories_db = build_trajectories(Harmonic_db, self.Harmonic_freqSmoother)
 
         minAmp_db = np.min(Harmonic_db)
 
         # Deleting short trajectories (below specific minimum duration)
-        trajectories, trajectories_freq, trajectories_db, Harmonic_db_filtered = \
+        trajectories, trajectories_freq, trajectories_db, self.Harmonic_db_filtered = \
             delete_short_trajectories(trajectories, trajectories_freq, trajectories_db, Harmonic_db, minTrajDuration
                                       , minAmp_db)
 
         # Smoothening out frequency variation within each trajectory
         trajectories, trajectories_freq, Harmonic_freq_filtered = \
-            smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
+            smooth_trajectories_freq(trajectories, trajectories_freq, self.Harmonic_freqSmoother, minTrajDuration)
 
         # Plot the smoothened trajectories, with intensity
         min_y, max_y = np.min(Harmonic_freq), np.max(Harmonic_freq)
@@ -112,6 +113,13 @@ class AudioAnalysis:
         #     smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
         # # Harmonic_freqSmoother should be used for resynthesis
         # # Harmonic_freq_Median should be used for fundamental_synthesis
+
+    def resynthesize(self, file_path):
+        if self.Harmonic_db_filtered is None:
+            self.show_trajectories()
+        harm_amp = librosa.db_to_amplitude(self.Harmonic_db_filtered)
+        bankosc = oscillators_bank_synthesis(harm_amp, self.Harmonic_freqSmoother, self.Fs, self.hop_length)
+        wave_file_creation(bankosc, self.Fs, file_path)
 
 
 class AnalysisParameters:

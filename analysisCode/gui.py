@@ -31,6 +31,7 @@ f = Figure()
 librosa_display_subplt = f.add_subplot(111)
 # librosa.display.specshow(main.X_db, y_axis='log', x_axis='time', ax=librosa_display_subplt)
 myaudio = type('AudioAnalysis', (), {})()
+myaudio = None
 
 
 def popupmsg(msg):
@@ -81,6 +82,23 @@ def show_fundamental():
         myaudio.showfundamental()
 
 
+def prepare_resynthesis():
+    if myaudio is None:
+        popupmsg("ERROR : no audio file processed currently")
+    else:
+        f = tk.filedialog.asksaveasfile(initialfile="resynthesisedSound", mode='w', defaultextension=".wav")
+        path_name = f.name
+        f.close()
+        print(path_name)
+        myaudio.resynthesize(path_name)
+
+
+def backtolobby(parent):
+    global myaudio
+    myaudio = None
+    parent.show_frame(StartPage)
+
+
 class TonalCompGui(tk.Tk):
 
     def __init__(self, *args, **kwargs):
@@ -96,9 +114,9 @@ class TonalCompGui(tk.Tk):
 
         menubar = tk.Menu(container)
         filemenu = tk.Menu(menubar, tearoff=0)
-        filemenu.add_command(label="Back to lobby", command=lambda: self.show_frame(StartPage))
+        filemenu.add_command(label="Back to lobby", command=lambda: backtolobby(self))
         filemenu.add_separator()
-        filemenu.add_command(label="Exit", command=self.destroy) #"command = quit" causes issues
+        filemenu.add_command(label="Exit", command=self.destroy)    # "command = quit" causes issues
         menubar.add_cascade(label="File", menu=filemenu)
 
         analysismenu = tk.Menu(menubar, tearoff=0)
@@ -108,7 +126,7 @@ class TonalCompGui(tk.Tk):
         menubar.add_cascade(label="Analysis", menu=analysismenu)
 
         synthmenu = tk.Menu(menubar, tearoff=0)
-        synthmenu.add_command(label="re-synthesis", command=lambda: popupmsg("not implemented yet"))
+        synthmenu.add_command(label="re-synthesis", command=prepare_resynthesis)
         synthmenu.add_command(label="custom synthesis", command=lambda: self.show_frame(CustomSynthesisPage))
         menubar.add_cascade(label="Synthesis", menu=synthmenu)
 
@@ -352,7 +370,6 @@ class CustomSynthesisPage(tk.Frame):
 
         goButton = ttk.Button(self, text='Go', command=None)
         goButton.grid(row=12, column=0, padx=12)
-
 
 
 app = TonalCompGui()
