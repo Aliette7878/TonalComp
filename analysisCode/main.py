@@ -31,7 +31,7 @@ MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
 deletingShortTracks = True  # If deleting short trajectories
 
 # The bandwidth delimits the research of the fundamental and harmonics
-f_low =170
+f_low = 170
 f_high = 18000
 
 
@@ -92,7 +92,7 @@ indexToFreq = Fs / N_fft
 
 # Minimum duration of a trajectory in seconds
 minTrajDuration_seconds = 0.1
-minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) #in frames
+minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) # in frames
 
 # Define the array of amplitudes and frequencies for the N_h harmonics
 if N_h == 1:
@@ -226,7 +226,6 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     plt.title('Smoothed fundamental')
     plt.xlabel("Frames")
     plt.ylabel('Hz')
-
     plt.show()
 
 # numberOfPeaks PART----------------
@@ -283,23 +282,24 @@ def real_fundamental(peakLoc_List, foo):
 
 def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSearch):
 
+    nframes = len(fundamentalList)
     # Initialization of storage vectors that include fundamental and harmonics
-    harmonic_db = np.zeros((n_frames, N_h))
-    harmonic_freq = np.zeros((n_frames, N_h))
+    harmonic_db = np.zeros((nframes, N_h))
+    harmonic_freq = np.zeros((nframes, N_h))
 
     # Silence threshold
     silence_thres = 0.9 * np.min(xdB)
 
     if missingFundSearch:
         Divisor = []
-        for n in range(n_frames):
+        for n in range(nframes):
             peakLoc_List = findPeaksScipy(X_db[:, n], f_low / indexToFreq)
             divisor = real_fundamental(peakLoc_List, fundamentalList[n])
             Divisor.append(divisor)
         DivisorSmoother = scipy.signal.medfilt(Divisor, N_moving_median)
 
     # Building Harmonic_db and Harmonic_freq
-    for n in range(n_frames):
+    for n in range(nframes):
         # We want to be able to compute interpolation, so at least size>3, and we want an odd number
         Bw = max(4,2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq))
 
@@ -421,8 +421,8 @@ if __name__ == "__main__":
 
 # ------------------------------------------- TRAJECTORIES ------------------------------------------
 
-#We assume that we have a representation that is [fundamental, 1st harmonic, 2nd harm...] through all frames
-#Even in the moments of silence, there are N_h harmonics, just with very low amplitude -> those might get set to zero if too fast
+# We assume that we have a representation that is [fundamental, 1st harmonic, 2nd harm...] through all frames
+# Even in the moments of silence, there are N_h harmonics, just with very low amplitude -> those might get set to zero if too fast
 
 
 def build_trajectories(Harm_db, Harm_freq):
@@ -441,7 +441,7 @@ def build_trajectories(Harm_db, Harm_freq):
                 traj_db[m, i * 2] = Harm_db[m, i]
             else:
                 freq_distance = abs(Harm_freq[m, i] - Harm_freq[m - 1, i])  # measure freq distance
-                freq_dev_offset = (Harm_freq[m - 1, i]) * (pow(2, 1 / 24) - 1)     # a bit lower than half of a half-tone
+                freq_dev_offset = (Harm_freq[m - 1, i]) * (pow(2, 1 / 24) - 1)    # a bit lower than half of a half-tone
                 if freq_distance < freq_dev_offset:     # if belongs to the same trajectory
                     traj[m, i] = traj[m - 1, i]
                     if traj_freq[m - 1, i * 2] == 0:
@@ -524,11 +524,11 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
 
                     if traj[traj_end, i] == 1:
                         traj_freq[traj_start: traj_end + 1, 2 * i] = \
-                        cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i], order_cursorMedian)
+                            cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i], order_cursorMedian)
 
                     elif traj[traj_end, i] == 2:
                         traj_freq[traj_start: traj_end + 1, 2 * i + 1] =\
-                        cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i + 1], order_cursorMedian)
+                            cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i + 1], order_cursorMedian)
 
     return traj, traj_freq, Harm_freq_filtered
 
@@ -605,6 +605,7 @@ if __name__ == "__main__":
 
 # ------------------------------------------ PART 2 : SYNTHESIS ------------------------------------------
 
+
 def linear_interpolation(a, b, n):
     s = np.arange(n) * (b - a) / (n - 1) + np.ones(n) * a
     return s
@@ -652,12 +653,11 @@ def oscillators_bank_synthesis(harm_amp, harm_freq, f_s, hop_length):
 
 # ------------------------------------------ SOUND - WAV FILE CREATION ------------------------------------------
 
-def wave_file_creation(ex_number, out_bankosc, f_s, deleted_tracks, type_additive):
+
+def wave_file_creation(out_bankosc, f_s, file_path):
     # Open the wav file
-    file_name = "Synthesized_" + ("smooth_" if deleted_tracks else "") + \
-                ("additive_" if type_additive else "") + "example_" + str(ex_number) + ".wav"
-    wav_file = wave.open(file_name, "w")
-    print("Saving " + file_name + "...")
+    wav_file = wave.open(file_path, "w")
+    print("Saving " + file_path + "...")
 
     # Writing parameters
     data_size = len(out_bankosc)
@@ -675,18 +675,19 @@ def wave_file_creation(ex_number, out_bankosc, f_s, deleted_tracks, type_additiv
         wav_file.writeframes(struct.pack('h', int(s * amp / 2)))
 
     wav_file.close()
-    print(file_name + " saved")
+    print(file_path + " saved")
 
 
-
-def resynthesis(harm_db, harm_freq, Fs, Hop_length, deletingShortTracks, ex_number):
+def resynthesis(harm_db, harm_freq, fs, hop_length, deletingShortTracks, ex_number):
     harm_amp = librosa.db_to_amplitude(harm_db)
-    bankosc = oscillators_bank_synthesis(harm_amp, harm_freq, Fs, Hop_length)
+    bankosc = oscillators_bank_synthesis(harm_amp, harm_freq, Fs, hop_length)
 
-    wave_file_creation(ex_number, bankosc, Fs, deletingShortTracks, 0)
+    file_path = "..\\synthetised_sound\\Synthesized_" + ("smooth_" if deletingShortTracks else "") + \
+                "example_" + str(ex_number) + ".wav"
+    wave_file_creation(bankosc, fs, file_path)
 
 
-def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, freq_array, Fs, Hop_length, deletingShortTracks, ex_number):
+def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, freq_array, fs, hop_length, deletingShortTracks, ex_number):
 
     harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
     harmonic_freq_additive[:, 0] = harm_freq[:, 0]
@@ -696,17 +697,17 @@ def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, freq_array,
     harmonic_amp_additive = np.zeros((harm_db.shape[0], harm_db.shape[1]))
     harmonic_amp_additive[:, 0] = harmonic_amp[:, 0]
 
-
     frequencies_array = []
     for i in range(1, harmonic_amp_additive.shape[1]):
         harmonic_amp_additive[:, i] = harmonic_amp_additive[:, 0] * amplitudes_array[i]
         harmonic_freq_additive[:, i] = harmonic_freq_additive[:, 0] * (i + 1) * (1 + freq_array[i] * (pow(2,1/24) - 1))
 
-    bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, Fs, Hop_length)
+    bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, fs, hop_length)
 
     # Writing the file with controlled harmonics
-    wave_file_creation(ex_number, bankosc, Fs, deletingShortTracks, 1) # for now we assume that tracks are deleted for type additive
-
+    file_path = "..\\synthetised_sound\\Synthesized_" + ("smooth_" if deletingShortTracks else "") + \
+                "additive_example_" + str(ex_number) + ".wav"
+    wave_file_creation(bankosc, Fs, file_path)  # for now we assume that tracks are deleted for type additive
 
 
 if __name__ == "__main__":  # For now the whole synthesis part doesn't exists outside of main
