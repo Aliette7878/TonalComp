@@ -428,7 +428,7 @@ def build_trajectories(Harm_db, Harm_freq):
                 traj_db[m, i * 2] = Harm_db[m, i]
             else:
                 freq_distance = abs(Harm_freq[m, i] - Harm_freq[m - 1, i])  # measure freq distance
-                freq_dev_offset = (Harm_freq[m - 1, i]) * (pow(2, 1 / 12) - 1) * 0.4     # a bit lower than half of a half-tone
+                freq_dev_offset = (Harm_freq[m - 1, i]) * (pow(2, 1 / 24) - 1)     # a bit lower than half of a half-tone
                 if freq_distance < freq_dev_offset:     # if belongs to the same trajectory
                     traj[m, i] = traj[m - 1, i]
                     if traj_freq[m - 1, i * 2] == 0:
@@ -612,27 +612,26 @@ def linear_interpolation(a, b, n):
     return s
 
 
-def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tracks):
+def oscillators_bank_synthesis(harm_amp, harm_freq, f_s, hop_length):
 
-    num_frames = harm_db.shape[0]
-    n_h = harm_db.shape[1]
+    num_frames = harm_amp.shape[0]
+    n_h = harm_amp.shape[1]
 
     # Time axis
-    time=np.arange(0, len(audio))
-
-    # db to amplitude
-    harm_amp = librosa.db_to_amplitude(harm_db)  # deleted the part "np.max(X)"
+    time = np.arange(0, hop_length * num_frames)
 
     # Allocate the output vector
-    out_bankosc = np.zeros(len(audio))
+    out_bankosc = np.zeros(num_frames * hop_length)
 
     for i in range(n_h):
 
         # Generate the interpolated amp and freq, for samples within each frame
 
-        IntAmp = np.zeros(len(audio))
-        IntFreq = np.zeros(len(audio))
-        IntPhase = np.zeros(len(audio))
+        oscillator = np.zeros(num_frames * hop_length)
+
+        IntAmp = np.zeros(num_frames * hop_length)
+        IntFreq = np.zeros(num_frames * hop_length)
+        IntPhase = np.zeros(num_frames * hop_length)
 
         for m in range(num_frames - 1):
             IntAmp[m * hop_length:(m + 1) * hop_length] = linear_interpolation(harm_amp[m, i], harm_amp[m + 1, i],
@@ -647,10 +646,6 @@ def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tr
                                 (np.ones(hop_length) * 2 * np.pi * harm_freq[m-1, i] * (hop_length+1) * m / f_s) - \
                                 (np.ones(hop_length) * 2 * np.pi * harm_freq[m, i] * (hop_length+1) * m / f_s)
 
-        # Last samples
-        IntAmp[(num_frames-1)*hop_length:len(audio)]=linear_interpolation(harm_amp[num_frames-1,i],0,len(audio)-(num_frames-1)*hop_length)
-        IntFreq[(num_frames-1)*hop_length:len(audio)] = harm_freq[num_frames-1, i]
-
         oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s + IntPhase)
 
         out_bankosc = out_bankosc + oscillator
@@ -659,57 +654,12 @@ def oscillators_bank_synthesis(harm_db, harm_freq, f_s, hop_length, filtering_tr
     out_bankosc = out_bankosc * (np.max(audio) - np.min(audio)) / (np.max(out_bankosc) - np.min(out_bankosc))
     return out_bankosc
 
-# ---------------------------------------- ADDITIVE SYNTHESIS: STARTING FROM ONLY FUNDAMENTAL ------------------------------------------
-
-def oscillators_bank_synthesis_additive(harm_db, harm_freq, f_s, hop_length, amplitude_array):
-
-    num_frames = harm_db.shape[0]
-    n_h = harm_db.shape[1]
-
-    # Time axis
-    time=np.arange(0, len(audio))
-
-    # Fundamental: db to amplitude
-    harm_amp = librosa.db_to_amplitude(harm_db)  # deleted the part "np.max(X)"
-    fund_amp = harm_amp[:, 0]
-
-    # Fundamental: frequency
-    fund_freq = harm_freq[:, 0]
-
-    # Allocate the output vector
-    out_bankosc = np.zeros(len(audio))
-
-    for i in range(n_h):
-        # Generate the interpolated amp and freq, for samples within each frame
-
-        IntAmp = np.zeros(len(audio))
-        IntFreq = np.zeros(len(audio))
-
-
-        for m in range(num_frames - 1):
-            IntAmp[m * hop_length:(m + 1) * hop_length] = linear_interpolation(fund_amp[m], fund_amp[m + 1],
-                                                                               hop_length) * amplitude_array[i]
-
-            IntFreq[m * hop_length:(m + 1) * hop_length] = np.ones(hop_length) * fund_freq[m] * (i + 1)
-
-        # Last frame : amplitude goes to 0, frequency is kept constant
-        IntAmp[(num_frames-1)*hop_length:len(audio)]=linear_interpolation(fund_amp[num_frames-1],0,len(audio)-(num_frames-1)*hop_length)* amplitude_array[i]
-        IntFreq[(num_frames-1)*hop_length:len(audio)] = fund_freq[num_frames-1]
-
-        oscillator = IntAmp * np.sin(2 * np.pi * IntFreq * time / f_s)
-
-        out_bankosc = out_bankosc + oscillator
-
-    # Normalizing out
-    out_bankosc = out_bankosc * (np.max(audio) - np.min(audio)) / (np.max(out_bankosc) - np.min(out_bankosc))
-    return out_bankosc
-
-
 # ------------------------------------------ SOUND - WAV FILE CREATION ------------------------------------------
 
-def wave_file_creation(ex_number, out_bankosc, f_s, type_additive):
+def wave_file_creation(ex_number, out_bankosc, f_s, deleted_tracks, type_additive):
     # Open the wav file
-    file_name = "Synthesized_Osc_" + ("additive_" if type_additive else "") + "example_" + str(example_number) + ".wav"
+    file_name = "Synthesized_" + ("smooth_" if deleted_tracks else "") + \
+                ("additive_" if type_additive else "") + "example_" + str(ex_number) + ".wav"
     wav_file = wave.open(file_name, "w")
     print("Saving " + file_name + "...")
 
@@ -722,7 +672,7 @@ def wave_file_creation(ex_number, out_bankosc, f_s, type_additive):
     compname = "not compressed"
 
     # Set writing parameters
-    wav_file.setparams((nchannels, sampwidth, Fs, data_size, comptype, compname))
+    wav_file.setparams((nchannels, sampwidth, f_s, data_size, comptype, compname))
 
     # Write out in the wav file
     for s in out_bankosc:
@@ -732,21 +682,47 @@ def wave_file_creation(ex_number, out_bankosc, f_s, type_additive):
     print(file_name + " saved")
 
 
-if __name__ == "__main__":  # For now the whole synthesis part doesn't exists outside of main
 
-    # 1. Part with tracking the original harmonics
+def resynthesis(harm_db, harm_freq, Fs, Hop_length, deletingShortTracks, ex_number):
+    harm_amp = librosa.db_to_amplitude(harm_db)
+    bankosc = oscillators_bank_synthesis(harm_amp, harm_freq, Fs, Hop_length)
 
-    if deletingShortTracks:
-        bankosc = oscillators_bank_synthesis(Harmonic_db_filtered, Harmonic_freq_filtered, Fs, Hop_length, deletingShortTracks)
-    else:
-        bankosc = oscillators_bank_synthesis(Harmonic_db, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks)
+    wave_file_creation(ex_number, bankosc, Fs, deletingShortTracks, 0)
 
-    # Writing the file with original harmonics
-    wave_file_creation(example_number, bankosc, Fs, 0)
 
-    # 2. Part with controlling harmonics
+def synthesis_from_fundamental(harm_db, harm_freq, amplitudes_array, Fs, Hop_length, deletingShortTracks, ex_number):
 
-    bankosc_add = oscillators_bank_synthesis_additive(Harmonic_db_filtered, Harmonic_freq_filtered, Fs, Hop_length, Amplitudes_array)
+    harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
+    harmonic_freq_additive[:, 0] = harm_freq[:, 0]
+
+    harmonic_amp = librosa.db_to_amplitude(harm_db)
+
+    harmonic_amp_additive = np.zeros((harm_db.shape[0], harm_db.shape[1]))
+    harmonic_amp_additive[:, 0] = harmonic_amp[:, 0]
+
+    for i in range(1, harmonic_amp_additive.shape[1]):
+        harmonic_amp_additive[:, i] = harmonic_amp_additive[:, 0] * amplitudes_array[i]
+        harmonic_freq_additive[:, i] = harmonic_freq_additive[:, 0] * (i + 1)
+
+    bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, Fs, Hop_length)
 
     # Writing the file with controlled harmonics
-    wave_file_creation(example_number, bankosc_add, Fs, 1)
+    wave_file_creation(ex_number, bankosc, Fs, deletingShortTracks, 1) # for now we assume that tracks are deleted for type additive
+
+
+
+if __name__ == "__main__":  # For now the whole synthesis part doesn't exists outside of main
+
+    # Calling both ways of synthesis
+    # 1. Resynthesis: Part with tracking the original harmonics
+    # 2. Synthesis from fundamental: Part with controlling harmonics
+
+    if deletingShortTracks:
+        resynthesis(Harmonic_db_filtered, Harmonic_freq_filtered, Fs, Hop_length, deletingShortTracks, example_number)
+        synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freq_filtered, Amplitudes_array,
+                                   Fs, Hop_length, deletingShortTracks, example_number)
+    else:
+        resynthesis(Harmonic_db, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks, example_number)
+        synthesis_from_fundamental(Harmonic_db, Harmonic_freqSmoother, Amplitudes_array,
+                                   Fs, Hop_length, deletingShortTracks, example_number)
+
