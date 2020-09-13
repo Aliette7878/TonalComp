@@ -32,7 +32,7 @@ deletingShortTracks = True  # If deleting short trajectories
 smoothingTrajectories = False   # Smooth trajectories (if false, the cursor is useless and should be disable
 
 # The bandwidth delimits the research of the fundamental and harmonics
-f_low = 170
+f_low = 50
 f_high = 18000
 
 
@@ -289,7 +289,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
     # Building Harmonic_db and Harmonic_freq
     for n in range(n_frames):
         # We want to be able to compute interpolation, so at least size>3, and we want an odd number
-        Bw = 2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq)
+        Bw = max(4,2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq))
 
         if missingFundSearch:
             div = DivisorSmoother[n]
