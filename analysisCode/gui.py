@@ -133,14 +133,15 @@ class TonalCompGui(tk.Tk):
         menubar.add_cascade(label="Analysis", menu=analysismenu)
 
         synthmenu = tk.Menu(menubar, tearoff=0)
-        synthmenu.add_command(label="do smth", command=lambda: popupmsg("not implemented yet"))
+        synthmenu.add_command(label="re-synthesis", command=lambda: popupmsg("not implemented yet"))
+        synthmenu.add_command(label="custom synthesis", command=lambda: self.show_frame(CustomSynthesisPage))
         menubar.add_cascade(label="Synthesis", menu=synthmenu)
 
         tk.Tk.config(self, menu=menubar)
 
         self.frames = {}
 
-        for F in (StartPage, LoadingPage, MainPage):
+        for F in (StartPage, LoadingPage, MainPage, CustomSynthesisPage):
             frame = F(container, self)
 
             self.frames[F] = frame
@@ -223,6 +224,9 @@ class StartPage(tk.Frame):
         e4 = tk.Entry(parametersFrame, textvariable=self.fmax_str)
         e3.grid(row=4, column=1, sticky="w", padx=(5, 20))
         e4.grid(row=5, column=1, sticky="w", padx=(5, 20), pady=(0, 20))
+
+        buttonMore = ttk.Button(parametersFrame, text="Learn more about these parameters")
+        buttonMore.grid(row=6, column=0, columnspan=2)
 
         def goAction():
             controller.show_frame(LoadingPage)
@@ -315,6 +319,65 @@ class MainPage(tk.Frame):
         toolbar = NavigationToolbar2Tk(canvas, frame2)
         toolbar.update()
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+
+class CustomSynthesisPage(tk.Frame):
+
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+
+        titleLabel = tk.Label(self, text="CustomSynthesis", font=LARGE_FONT)
+        titleLabel.grid(row=0, column=0, columnspan=12, sticky='nsew')
+
+        backButton = ttk.Button(self, text='Back', command=lambda: controller.show_frame(MainPage))
+        backButton.grid(row=1, column=0, padx=10)
+
+        subtitleLabel = tk.Label(self, text="custom your harmonics", font=NORM_FONT)
+        subtitleLabel.grid(row=1, column=3, columnspan=6, pady=20)
+
+        labelAmplitude = tk.Label(self, text="Amplitude", font=SMALL_FONT)
+        labelAmplitude.grid(row=3, column=0, padx=10, pady=10)
+        labelInharmo = tk.Label(self, text="Inharmonicity", font=SMALL_FONT)
+        labelInharmo.grid(row=4, column=0, padx=10, pady=10)
+
+        amplitudeVarList = []
+        inHarmonicityVarList = []
+        for i in range(12):
+            amplitudeVarList.append(tk.DoubleVar())
+            inHarmonicityVarList.append(tk.DoubleVar())
+            amplitudeVarList[i].set(1/(i+1))
+            inHarmonicityVarList[i].set(0)
+
+            harmoScale = ttk.Scale(self, orient='vertical', from_=1, to=0, variable=amplitudeVarList[i])
+            harmoScale.grid(row=3, column=i+1, padx=10)
+            labelValue = tk.Label(self, textvariable=amplitudeVarList[i], font=SMALL_FONT, width=5, anchor='w')
+            labelValue.grid(row=3, column=i+1, padx=15)
+
+            inharmonicityScale = ttk.Scale(self, orient='horizontal', from_=-1, to=1, length=50, variable=inHarmonicityVarList[i])
+            inharmonicityScale.grid(row=4, column=i+1, padx=10)
+            labelValue = tk.Label(self, textvariable=inHarmonicityVarList[i], font=SMALL_FONT, width=4, anchor='w')
+            labelValue.grid(row=5, column=i+1, padx=10)
+            if i == 0:
+                label = tk.Label(self, text="fund", font=SMALL_FONT)
+                label.grid(row=6, column=i + 1, padx=10)
+            else:
+                label = tk.Label(self, text="f"+str(i), font=SMALL_FONT)
+                label.grid(row=6, column=i+1, padx=10)
+
+        envelopeLabel = tk.Label(self, text="custom the envelope", font=NORM_FONT)
+        envelopeLabel.grid(row=7, column=1, columnspan=6, pady=(30,15))
+        labelAttack = tk.Label(self, text="attack time", font=SMALL_FONT)
+        labelAttack.grid(row=8, column=1, padx=10, pady=10)
+        labelDecay = tk.Label(self, text="decay time", font=SMALL_FONT)
+        labelDecay.grid(row=9, column=1, padx=10, pady=10)
+        attackSc = ttk.Scale(self, orient='horizontal', from_=0, to=1)
+        attackSc.grid(row=8, column=2, padx=10)
+        decaySc = ttk.Scale(self, orient='horizontal', from_=0, to=1)
+        decaySc.grid(row=9, column=2, padx=10)
+
+        goButton = ttk.Button(self, text='Go', command=None)
+        goButton.grid(row=12, column=0, padx=12)
+
 
 
 app = TonalCompGui()

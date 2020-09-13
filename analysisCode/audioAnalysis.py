@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import scipy.signal
 
 from main import computeAllPeaks, findHarmonics_blockMethod, smootherHarmonics, build_trajectories, \
-    delete_short_trajectories, smooth_trajectories_freq, plotSmoothTrajIntensity, N_moving_median, numberOfPeaks, minTrajDuration
+    delete_short_trajectories, smooth_trajectories_freq, plotSmoothTrajIntensity, N_moving_median, numberOfPeaks, minTrajDuration, findPeaksScipy
 
 
 class AudioAnalysis:
