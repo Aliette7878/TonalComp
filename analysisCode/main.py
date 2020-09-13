@@ -288,7 +288,8 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
 
     # Building Harmonic_db and Harmonic_freq
     for n in range(n_frames):
-        Bw = int(0.9 * fundamentalList[n] / indexToFreq)
+        # We want to be able to compute interpolation, so at least size>3, and we want an odd number
+        Bw = 2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq)
 
         if missingFundSearch:
             div = DivisorSmoother[n]
@@ -312,15 +313,15 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
 
             else:
                 # Draw the research block
-                k_inf = max(0, k_th - Bw)
+                k_inf = max(0, k_th - int(Bw/2))
                 k_inf = min(k_inf, Nyq)
-                Block = xdB[k_inf:min(k_inf + 2 * Bw - 1, Nyq), n]
+                Block = xdB[k_inf:min(k_inf + int(Bw), Nyq-1), n]
 
                 maxB = max(Block)
                 k_maxB = np.argmax(Block, axis=0)
 
                 # Interpolation
-                if 0 < k_maxB < 2 * (Bw - 1) and ParabolicInterpolation:
+                if 0 < k_maxB <Bw - 1 and ParabolicInterpolation:
                     alpha = Block[k_maxB - 1]
                     beta = Block[k_maxB]
                     gamma = Block[k_maxB + 1]
