@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal
 
-from main import computeAllPeaks, findHarmonics_blockMethod, smootherHarmonics, build_trajectories, \
-    delete_short_trajectories, smooth_trajectories_freq, plotSmoothTrajIntensity, N_moving_median, numberOfPeaks, minTrajDuration, findPeaksScipy
+from main import findPeaksScipy, findHarmonics_blockMethod, smootherHarmonics, build_trajectories, \
+    delete_short_trajectories, smooth_trajectories_freq, plotSmoothTrajIntensity, N_moving_median, minTrajDuration
 
 
 class AudioAnalysis:
@@ -16,6 +16,7 @@ class AudioAnalysis:
         self.pathName = pathName
         self.audio, self.Fs = librosa.load(pathName, sr=None)       # mp3 not supported yet (can be with ffmpeg)
         print("Fs: ", self.Fs)
+        self.analysisParams = analysisParams
         self.win_length = math.floor(analysisParams.L * self.Fs / analysisParams.d_f)
         self.win_length = math.floor(self.win_length*winLength_mul)
         # N_fft should be at least the window's length, and should respect the JND criteria
@@ -42,49 +43,50 @@ class AudioAnalysis:
         print("n frames = " + str(self.n_frames))
         print("Audio length = " + str(len(self.audio)))
 
+        self.fundThroughFrame = None
+        self.fundThroughFrameSmoother = None
+
     def showframe(self, frameIndex):
         fig2 = plt.figure(figsize=(20, 15))
         plt.plot(self.indexToFreq * np.arange(self.X_db[:1500, frameIndex].size), self.X_db[:1500, frameIndex])
         fig2.show()
 
-    def showpeaks(self, numbOfPeaks):
+    def showfundamental(self):
 
-        peakLoc_List, peakMag_List = computeAllPeaks(self.X_db, numbOfPeaks, self.indexToFreq)
+        self.fundThroughFrame = np.zeros(self.n_frames)
 
-        fundThroughFrame = np.amin(peakLoc_List, axis=0)    # Depending on the number of peaks computed, this can be
-        # irrelevant (too much peak = peaks under fundamental, only 1 or 2 peaks can catch harmonics only)
-        fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
+        for m in range(self.n_frames):
+            self.fundThroughFrame[m] = findPeaksScipy(self.X_db[:, m], self.analysisParams.f_low / self.indexToFreq)[0]
+
+        self.fundThroughFrameSmoother = scipy.signal.medfilt(self.fundThroughFrame, N_moving_median)
 
         plt.figure(figsize=(15, 8))
 
-        plt.subplot(311)
-        symbolList = ['o', 'x', 'v', '*', 'h', '+', 'd', '^']
-        legendList = []
-        for j in range(numbOfPeaks):
-            pkloc = peakLoc_List[j]
-            plt.plot(np.arange(len(pkloc)), self.indexToFreq * pkloc, symbolList[j % len(symbolList)])
-            legendList.append("peak " + str(j + 1))
-        plt.legend(legendList)
+        plt.subplot(211)
+        plt.plot(np.arange(len(self.fundThroughFrame)), self.indexToFreq * self.fundThroughFrame, '.')
+        plt.title('Fundamental found with peak tracking')
+        plt.xlabel("Frames")
+        plt.ylabel('Hz')
 
-        plt.subplot(312)
-        plt.plot(np.arange(len(fundThroughFrame)), self.indexToFreq * fundThroughFrame)
-
-        plt.subplot(313)
-        plt.plot(np.arange(len(fundThroughFrameSmoother)), self.indexToFreq * fundThroughFrameSmoother)
-        plt.show(block=False)
+        plt.subplot(212)
+        plt.plot(np.arange(len(self.fundThroughFrameSmoother)), self.indexToFreq * self.fundThroughFrameSmoother, '.')
+        plt.title('Smoothed fundamental')
+        plt.xlabel("Frames")
+        plt.ylabel('Hz')
+        plt.show()
 
     def show_trajectories(self):
 
-        # compute peaks with numberOfPeaks set in main.py
-        peakLoc_List, peakMag_List = computeAllPeaks(self.X_db, numberOfPeaks, self.indexToFreq)
-
-        fundThroughFrame = np.amin(peakLoc_List, axis=0)
-        fundThroughFrameSmoother = scipy.signal.medfilt(fundThroughFrame, N_moving_median)
+        # compute fundamental with the dedicated function implemented in main.py
+        if self.fundThroughFrameSmoother is None:
+            self.fundThroughFrame = np.zeros(self.n_frames)
+            for m in range(self.n_frames):
+                self.fundThroughFrame[m] = findPeaksScipy(self.X_db[:, m], self.analysisParams.f_low / self.indexToFreq)[0]
+            self.fundThroughFrameSmoother = scipy.signal.medfilt(self.fundThroughFrame, N_moving_median)
 
 
         #compute harmonics
-        Harmonic_freq, Harmonic_db = findHarmonics_blockMethod(self.X_db, fundThroughFrameSmoother, peakLoc_List,
-                                                        self.indexToFreq, False)    # No missing fund search for now
+        Harmonic_freq, Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother, self.indexToFreq, False)
         Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
 
@@ -105,6 +107,11 @@ class AudioAnalysis:
         # Plot the smoothened trajectories, with intensity
         min_y, max_y = np.min(Harmonic_freq), np.max(Harmonic_freq)
         plotSmoothTrajIntensity(trajectories_freq, trajectories_db, min_y, max_y)
+
+        # trajectories, trajectories_freq, Harmonic_freqMedian = \
+        #     smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
+        # # Harmonic_freqSmoother should be used for resynthesis
+        # # Harmonic_freq_Median should be used for fundamental_synthesis
 
 
 class AnalysisParameters:
