@@ -39,7 +39,7 @@ f_high = 18000
 N_moving_median = 19  # Maybe not a user option
 
 # Length of the median used on a trajectory
-order_cursorMedian = 1 # in percentage of the trajectory's length
+order_cursorMedian = 1  # in percentage of the trajectory's length
 
 # ------------------------------------------ WINDOWING ------------------------------------------
 
@@ -94,13 +94,13 @@ sustain_amp = 0.01
 
 # Define the array of amplitudes and frequencies for the N_h harmonics
 if N_h == 1:
-    Amplitudes_array = 1
-    Frequencies_array = 0
+    Amplitudes_array = [1]
+    Inharmonicity_array = [0]
 else:
     Amplitudes_array = np.ones(N_h) * 0.5
     Amplitudes_array[0] = 1
-    Frequencies_array = np.zeros(N_h)
-    Frequencies_array[1:N_h] = np.zeros(N_h-1)
+    Inharmonicity_array = np.zeros(N_h)
+    Inharmonicity_array[1:N_h] = np.zeros(N_h-1)
 
 if __name__ == "__main__":  # This prevents the execution of the following code if main.py is imported in another script
     print("Peak resolution d_f = " + str(d_f) + " Hz")
@@ -111,7 +111,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     print("Audio length = " + str(len(audio)))
     print("Min trajectory duration = " + str(minTrajDuration_seconds) + " seconds, " + str(minTrajDuration) + " frames")
     print("Amplitudes array = " + str(Amplitudes_array))
-    print("Frequencies array = " + str(Frequencies_array))
+    print("Frequencies array = " + str(Inharmonicity_array))
 
 # ------------------------------------------ STFT ------------------------------------------
 
@@ -246,6 +246,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
                 # Draw the research block
                 k_inf = max(0, k_th - int(Bw/2))
                 k_inf = min(k_inf, Nyq)
+                print(k_inf)
                 Block = xdB[k_inf:min(k_inf + int(Bw), Nyq-1), n]
 
                 maxB = max(Block)
@@ -574,7 +575,7 @@ def oscillators_bank_synthesis(harm_amp, harm_freq, f_s, hop_length):
     return out_bankosc
 
 
-def adsr_amp(traj, harm_amp, attack, decay, sustain):
+def adsr_amp(traj, harm_amp, attack, decay, sustainAmp):
 
     harm_amp_adsr = np.copy(harm_amp)
     attack_frames = round(attack * Fs / Hop_length)
@@ -603,13 +604,13 @@ def adsr_amp(traj, harm_amp, attack, decay, sustain):
 
                         if traj_start + attack_frames + decay_frames < traj_end:
                             harm_amp_adsr[traj_start + attack_frames + 1: traj_start + attack_frames + decay_frames + 1, i] = \
-                                linear_interpolation(max_value_amp, sustain, decay_frames)
+                                linear_interpolation(max_value_amp, sustainAmp, decay_frames)
                             harm_amp_adsr[traj_start + attack_frames + decay_frames + 1: traj_end + 1, i] = \
-                                np.ones(traj_end - traj_start - attack_frames - decay_frames) * sustain;
+                                np.ones(traj_end - traj_start - attack_frames - decay_frames) * sustainAmp;
 
                         else:
                             harm_amp_adsr[traj_start + attack_frames + 1: traj_end + 1, i] =\
-                                linear_interpolation(max_value_amp, sustain, traj_end - traj_start - attack_frames)
+                                linear_interpolation(max_value_amp, sustainAmp, traj_end - traj_start - attack_frames)
                     else:
                         harm_amp_adsr[traj_start: traj_end + 1, i] = \
                             linear_interpolation(0.1, max_value_amp, traj_end - traj_start + 1)
@@ -653,8 +654,8 @@ def resynthesis(harm_db, harm_freq, fs, hop_length, deleting_short_tracks, ex_nu
     wave_file_creation(bankosc, fs, file_path)
 
 
-def synthesis_from_fundamental(harm_db, harm_freq, traj, amplitudes_array, freq_array, attack,
-                               decay, sustain, fs, hop_length, deleting_short_tracks, envelope_adsr, ex_number):
+def synthesis_from_fundamental(harm_db, harm_freq, traj, amplitudes_array, inharm_array, attack,
+                               decay, sustain_ampl, fs, hop_length, envelope_adsr, path_name):
 
     harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
     harmonic_freq_additive[:, 0] = harm_freq[:, 0]
@@ -666,17 +667,15 @@ def synthesis_from_fundamental(harm_db, harm_freq, traj, amplitudes_array, freq_
 
     for i in range(1, harmonic_amp_additive.shape[1]):
         harmonic_amp_additive[:, i] = harmonic_amp_additive[:, 0] * amplitudes_array[i]
-        harmonic_freq_additive[:, i] = harmonic_freq_additive[:, 0] * (i + 1) * (1 + freq_array[i] * (pow(2,1/24) - 1))
+        harmonic_freq_additive[:, i] = harmonic_freq_additive[:, 0] * (i + 1) * (1 + inharm_array[i] * (pow(2,1/24) - 1))
 
     if envelope_adsr:
-        harmonic_amp_additive = adsr_amp(traj, harmonic_amp_additive, attack, decay, sustain)
+        harmonic_amp_additive = adsr_amp(traj, harmonic_amp_additive, attack, decay, sustain_ampl)
 
     bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, fs, hop_length)
 
     # Writing the file with controlled harmonics
-    file_path = "..\\synthesized_sound\\Synthesized_" + ("smooth_" if deleting_short_tracks else "") + \
-                "additive_example_" + str(ex_number) + ".wav"
-    wave_file_creation(bankosc, fs, file_path)  # for now we assume that tracks are deleted for type additive
+    wave_file_creation(bankosc, fs, path_name)  # for now we assume that tracks are deleted for type additive
 
 
 if __name__ == "__main__":  # For now the whole synthesis part doesn't exists outside of main
@@ -691,5 +690,7 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
     else:
         resynthesis(Harmonic_db, Harmonic_freqSmoother, Fs, Hop_length, deletingShortTracks, example_number)
 
-    synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freqMedian, trajectories, Amplitudes_array, Frequencies_array,
-                               attack_sec, decay_sec, sustain_amp, Fs, Hop_length, deletingShortTracks, envelopeADSR, example_number)
+    file_path = "..\\synthesized_sound\\Synthesized_" + ("smooth_" if deletingShortTracks else "") + \
+                "additive_example_" + str(example_number) + ".wav"
+    synthesis_from_fundamental(Harmonic_db_filtered, Harmonic_freqMedian, trajectories, Amplitudes_array, Inharmonicity_array,
+                               attack_sec, decay_sec, sustain_amp, Fs, Hop_length, envelopeADSR, file_path)

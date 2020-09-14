@@ -14,6 +14,7 @@ import glob
 import time
 
 from matplotlib import pyplot as plt
+import numpy as np
 
 import librosa.display
 from pathlib import Path
@@ -322,7 +323,13 @@ class CustomSynthesisPage(tk.Frame):
         titleLabel = tk.Label(self, text="CustomSynthesis", font=LARGE_FONT)
         titleLabel.grid(row=0, column=0, columnspan=12, sticky='nsew')
 
-        backButton = ttk.Button(self, text='Back', command=lambda: controller.show_frame(MainPage))
+        def backCommand():
+            if myaudio is None:
+                controller.show_frame(StartPage)
+            else:
+                controller.show_frame(MainPage)
+
+        backButton = ttk.Button(self, text='Back', command=backCommand)
         backButton.grid(row=1, column=0, padx=10)
 
         subtitleLabel = tk.Label(self, text="custom your harmonics", font=NORM_FONT)
@@ -333,9 +340,11 @@ class CustomSynthesisPage(tk.Frame):
         labelInharmo = tk.Label(self, text="Inharmonicity", font=SMALL_FONT)
         labelInharmo.grid(row=4, column=0, padx=10, pady=10)
 
+        harm_number = 12
+
         amplitudeVarList = []
         inHarmonicityVarList = []
-        for i in range(12):
+        for i in range(harm_number):
             amplitudeVarList.append(tk.DoubleVar())
             inHarmonicityVarList.append(tk.DoubleVar())
             amplitudeVarList[i].set(1/(i+1))
@@ -358,17 +367,48 @@ class CustomSynthesisPage(tk.Frame):
                 label.grid(row=6, column=i+1, padx=10)
 
         envelopeLabel = tk.Label(self, text="custom the envelope", font=NORM_FONT)
-        envelopeLabel.grid(row=7, column=1, columnspan=6, pady=(30,15))
+        envelopeLabel.grid(row=7, column=1, columnspan=6, pady=(30, 15))
         labelAttack = tk.Label(self, text="attack time", font=SMALL_FONT)
         labelAttack.grid(row=8, column=1, padx=10, pady=10)
         labelDecay = tk.Label(self, text="decay time", font=SMALL_FONT)
         labelDecay.grid(row=9, column=1, padx=10, pady=10)
-        attackSc = ttk.Scale(self, orient='horizontal', from_=0, to=1)
+        attack_value = tk.DoubleVar()
+        decay_value = tk.DoubleVar()
+        attack_value.set(0.1)
+        decay_value.set(0.05)
+        attackSc = ttk.Scale(self, orient='horizontal', from_=0.01, to=0.5, variable=attack_value)
         attackSc.grid(row=8, column=2, padx=10)
-        decaySc = ttk.Scale(self, orient='horizontal', from_=0, to=1)
+        decaySc = ttk.Scale(self, orient='horizontal', from_=0.01, to=0.5, variable=decay_value)
         decaySc.grid(row=9, column=2, padx=10)
+        labelAttackValue = tk.Label(self, textvariable=attack_value, font=SMALL_FONT, width=4, anchor='w')
+        labelAttackValue.grid(row=8, column=3, padx=(5, 0), pady=10)
+        labelDecayValue = tk.Label(self, textvariable=decay_value, font=SMALL_FONT, width=4, anchor='w')
+        labelDecayValue.grid(row=9, column=3, padx=(5, 0), pady=10)
+        labels = tk.Label(self, text='sec', font=SMALL_FONT)
+        labels.grid(row=8, column=3, padx=(0, 4), pady=10, sticky="e")
+        labels2 = tk.Label(self, text='sec', font=SMALL_FONT)
+        labels2.grid(row=9, column=3, padx=(0, 4), pady=10, sticky="e")
 
-        goButton = ttk.Button(self, text='Go', command=None)
+        def goCommand():
+            if myaudio is None:
+                popupmsg("ERROR : no audio file processed currently")
+            else:
+                f = tk.filedialog.asksaveasfile(initialfile="customSynthesisedSound", mode='w', defaultextension=".wav")
+                path_name = f.name
+                f.close()
+                print(path_name)
+
+                amplitude_array = np.zeros(harm_number)
+                inharmonicity_array = np.zeros(harm_number)
+                for j in range(harm_number):
+                    amplitude_array[j] = amplitudeVarList[j].get()
+                    inharmonicity_array[j] = inHarmonicityVarList[j].get()
+                attack = attack_value.get()
+                decay = decay_value.get()
+
+                myaudio.customSynth(amplitude_array, inharmonicity_array, attack, decay, path_name)
+
+        goButton = ttk.Button(self, text='Go', command=goCommand)
         goButton.grid(row=12, column=0, padx=12)
 
 
