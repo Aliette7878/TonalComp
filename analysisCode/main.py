@@ -467,6 +467,7 @@ def plotSmoothTrajIntensity(trajectoriesFreq, trajectoriesDB, miny, maxy):
 
     for h in range(N_h*2):
         y = trajectoriesFreq[:, h]
+        y[np.isnan(y)] = 0
         y[y <= 0] = np.nan
         dydx = trajectoriesDB[:, h]
 
