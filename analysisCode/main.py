@@ -18,8 +18,8 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 
 print(demo_files)
 
-example_number = 7
-path_name = demo_files[example_number - 1]
+example_number = 9
+path_name = demo_files[(str(example_number)+"_") in demo_files]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
 print("Fs: ", Fs)
