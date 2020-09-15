@@ -37,9 +37,6 @@ f_high = 18000
 
 N_moving_median = 19  # Maybe not a user option
 
-# Length of the median used on a trajectory
-order_cursorMedian = 1  # in percentage of the trajectory's length
-
 # ------------------------------------------ WINDOWING ------------------------------------------
 
 # Number of harmonics (including the fundamental)
@@ -491,15 +488,15 @@ def smooth_trajectories_freq(traj, traj_freq, Harm_freq, min_traj_duration):
                 traj_end = m
                 if (traj_end - traj_start >= 0) & (traj_end - traj_start > min_traj_duration):
 
-                    Harm_freq_filtered[traj_start: traj_end + 1, i] = cursorMedian(Harm_freq[traj_start: traj_end + 1, i], order_cursorMedian)
+                    Harm_freq_filtered[traj_start: traj_end + 1, i] = cursorMedian(Harm_freq[traj_start: traj_end + 1, i], 1)
 
                     if traj[traj_end, i] == 1:
                         traj_freq[traj_start: traj_end + 1, 2 * i] = \
-                            cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i], order_cursorMedian)
+                            cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i], 1)
 
                     elif traj[traj_end, i] == 2:
                         traj_freq[traj_start: traj_end + 1, 2 * i + 1] =\
-                            cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i + 1], order_cursorMedian)
+                            cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i + 1], 1)
 
     return traj, traj_freq, Harm_freq_filtered
 
