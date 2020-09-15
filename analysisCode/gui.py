@@ -34,6 +34,14 @@ librosa_display_subplt = f.add_subplot(111)
 myaudio = type('AudioAnalysis', (), {})()
 myaudio = None
 
+tutorial_parameters_text = "The first step of the analysis will be to process the audio input through a Short Time Fourier Transform. \n" \
+                           "Some parameters of the STFT highly influence the accuracy of the analysis. For example: \n\n" \
+                           "- The length of one analysis window determine the time definition of the analysis,\n" \
+                           "  as well as the minimum difference there has to be between 2 frequencies to distinguish them\n" \
+                           "- Then the length of this windows once zero padded will also be the length of its FFT,\n" \
+                           "  and defines the frequency definition of the spectrum of this each window of the signal.\n\n" \
+                           "To be continued..."
+
 
 def popupmsg(msg):
     popup = tk.Tk()
@@ -202,25 +210,27 @@ class StartPage(tk.Frame):
         # choices = ['0.25', '0.5', '1', '2', '4']
         choices = ['1']
         self.nfft_mul_str.set('1')
-        self.fmin_str.set("50")
-        self.fmax_str.set("20000")
-        e1 = tk.Entry(parametersFrame, textvariable=self.winLength_mul_str)
+        self.fmin_str.set("150")
+        self.fmax_str.set("18000")
+        e1 = tk.Entry(parametersFrame, textvariable=self.winLength_mul_str, width=15)
         e2 = tk.OptionMenu(parametersFrame, self.nfft_mul_str, *choices)
-        e1.grid(row=1, column=1, sticky="w", padx=(5, 20))
-        e2.grid(row=2, column=1, sticky="w", padx=(5, 20))
+        e1.grid(row=1, column=1, sticky="w", padx=5)
+        e2.grid(row=2, column=1, sticky="w", padx=5)
 
         tk.Label(parametersFrame, text="Bandwidth", font=NORM_FONT, background=self.paramBg).grid(row=3, sticky="e", pady=(10, 0))
 
         tk.Label(parametersFrame, text="f_min", background=self.paramBg).grid(row=4, sticky="e")
         tk.Label(parametersFrame, text="f_max (no space)", background=self.paramBg).grid(row=5, sticky="e", pady=(0, 20))
 
-        e3 = tk.Entry(parametersFrame, textvariable=self.fmin_str)
-        e4 = tk.Entry(parametersFrame, textvariable=self.fmax_str)
-        e3.grid(row=4, column=1, sticky="w", padx=(5, 20))
-        e4.grid(row=5, column=1, sticky="w", padx=(5, 20), pady=(0, 20))
+        e3 = tk.Entry(parametersFrame, textvariable=self.fmin_str, width=15)
+        e4 = tk.Entry(parametersFrame, textvariable=self.fmax_str, width=15)
+        e3.grid(row=4, column=1, sticky="w", padx=5)
+        e4.grid(row=5, column=1, sticky="w", padx=5, pady=(0, 20))
+        tk.Label(parametersFrame, text="Hz", background=self.paramBg).grid(row=4, column=2, sticky="w", padx=(0,20))
+        tk.Label(parametersFrame, text="Hz", background=self.paramBg).grid(row=5, column=2, sticky="w", padx=(0,20), pady=(0, 20))
 
-        buttonMore = ttk.Button(parametersFrame, text="Learn more about these parameters")
-        buttonMore.grid(row=6, column=0, columnspan=2)
+        buttonMore = ttk.Button(parametersFrame, text="Learn more about these parameters", command=lambda: popupmsg(tutorial_parameters_text))
+        buttonMore.grid(row=6, column=0, columnspan=3)
 
         def goAction():
             controller.show_frame(LoadingPage)
@@ -235,7 +245,7 @@ class StartPage(tk.Frame):
                 myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams, float(self.winLength_mul_str.get()), float(self.nfft_mul_str.get()))
             except ValueError:
                 controller.show_frame(StartPage)
-                popupmsg("ERROR : Analysis parameters entry format error")
+                popupmsg("ERROR : Analysis parameters entry format error or in any way too presumptuous")
 
             print(f"\n\nComputation in {time.time()-time_1} seconds")
             time_2 = time.time()
@@ -352,7 +362,7 @@ class CustomSynthesisPage(tk.Frame):
 
             harmoScale = ttk.Scale(self, orient='vertical', from_=1, to=0, variable=amplitudeVarList[i])
             harmoScale.grid(row=3, column=i+1, padx=10)
-            labelValue = tk.Label(self, textvariable=amplitudeVarList[i], font=SMALL_FONT, width=5, anchor='w')
+            labelValue = tk.Label(self, textvariable=amplitudeVarList[i], font=SMALL_FONT, width=4, anchor='w')
             labelValue.grid(row=3, column=i+1, padx=15)
 
             inharmonicityScale = ttk.Scale(self, orient='horizontal', from_=-1, to=1, length=50, variable=inHarmonicityVarList[i])
@@ -360,11 +370,11 @@ class CustomSynthesisPage(tk.Frame):
             labelValue = tk.Label(self, textvariable=inHarmonicityVarList[i], font=SMALL_FONT, width=4, anchor='w')
             labelValue.grid(row=5, column=i+1, padx=10)
             if i == 0:
-                label = tk.Label(self, text="fund", font=SMALL_FONT)
-                label.grid(row=6, column=i + 1, padx=10)
+                label = tk.Label(self, text="f0(fund)", font=SMALL_FONT)
+                label.grid(row=6, column=i + 1, padx=10, pady=5)
             else:
                 label = tk.Label(self, text="f"+str(i), font=SMALL_FONT)
-                label.grid(row=6, column=i+1, padx=10)
+                label.grid(row=6, column=i+1, padx=10, pady=5)
 
         envelopeLabel = tk.Label(self, text="custom the envelope", font=NORM_FONT)
         envelopeLabel.grid(row=7, column=1, columnspan=6, pady=(30, 15))
@@ -374,20 +384,20 @@ class CustomSynthesisPage(tk.Frame):
         labelDecay.grid(row=9, column=1, padx=10, pady=10)
         attack_value = tk.DoubleVar()
         decay_value = tk.DoubleVar()
-        attack_value.set(0.1)
+        attack_value.set(0.08)
         decay_value.set(0.05)
         attackSc = ttk.Scale(self, orient='horizontal', from_=0.01, to=0.5, variable=attack_value)
         attackSc.grid(row=8, column=2, padx=10)
         decaySc = ttk.Scale(self, orient='horizontal', from_=0.01, to=0.5, variable=decay_value)
         decaySc.grid(row=9, column=2, padx=10)
-        labelAttackValue = tk.Label(self, textvariable=attack_value, font=SMALL_FONT, width=4, anchor='w')
+        labelAttackValue = tk.Label(self, textvariable=attack_value, font=SMALL_FONT, width=5, anchor='w')
         labelAttackValue.grid(row=8, column=3, padx=(5, 0), pady=10)
-        labelDecayValue = tk.Label(self, textvariable=decay_value, font=SMALL_FONT, width=4, anchor='w')
+        labelDecayValue = tk.Label(self, textvariable=decay_value, font=SMALL_FONT, width=5, anchor='w')
         labelDecayValue.grid(row=9, column=3, padx=(5, 0), pady=10)
         labels = tk.Label(self, text='sec', font=SMALL_FONT)
-        labels.grid(row=8, column=3, padx=(0, 4), pady=10, sticky="e")
+        labels.grid(row=8, column=3, padx=(0, 2), pady=10, sticky="e")
         labels2 = tk.Label(self, text='sec', font=SMALL_FONT)
-        labels2.grid(row=9, column=3, padx=(0, 4), pady=10, sticky="e")
+        labels2.grid(row=9, column=3, padx=(0, 2), pady=10, sticky="e")
 
         def goCommand():
             if myaudio is None:
