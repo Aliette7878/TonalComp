@@ -4,8 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal
 
-from main import findPeaksScipy, findHarmonics_blockMethod, smootherHarmonics, build_trajectories, \
-    delete_short_trajectories, smooth_trajectories_freq, plotSmoothTrajIntensity, oscillators_bank_synthesis, \
+from main import plot_stft, findPeaksScipy, plot_fundamental, findHarmonics_blockMethod, smootherHarmonics, \
+    plot_harmonics, build_trajectories, delete_short_trajectories, smooth_trajectories_freq, \
+    plot_trajectories, plot_harmonics_intensity, oscillators_bank_synthesis, \
     wave_file_creation, resynthesis, custom_synthesis, N_moving_median, minTrajDuration
 
 
@@ -36,6 +37,7 @@ class AudioAnalysis:
             hop_length=self.hop_length, )
         )
         self.X_db = librosa.amplitude_to_db(self.X, ref=np.max)
+        plot_stft(self.X_db, self.Fs)
 
         print("Peak resolution d_f = " + str(analysisParams.d_f) + " Hz")
         print("N_fft = " + str(self.N_fft))
@@ -65,20 +67,25 @@ class AudioAnalysis:
 
         self.fundThroughFrameSmoother = scipy.signal.medfilt(self.fundThroughFrame, N_moving_median)
 
-        plt.figure(figsize=(15, 8))
+        plot_fundamental(self.fundThroughFrame * self.indexToFreq, self.fundThroughFrameSmoother * self.indexToFreq)
 
-        plt.subplot(211)
-        plt.plot(np.arange(len(self.fundThroughFrame)), self.indexToFreq * self.fundThroughFrame, '.')
-        plt.title('Fundamental found with peak tracking')
-        plt.xlabel("Frames")
-        plt.ylabel('Hz')
+    def show_harmonics(self):
 
-        plt.subplot(212)
-        plt.plot(np.arange(len(self.fundThroughFrameSmoother)), self.indexToFreq * self.fundThroughFrameSmoother, '.')
-        plt.title('Smoothed fundamental')
-        plt.xlabel("Frames")
-        plt.ylabel('Hz')
-        plt.show()
+        # compute fundamental with the dedicated function implemented in main.py
+        if self.fundThroughFrameSmoother is None:
+            self.fundThroughFrame = np.zeros(self.n_frames)
+            for m in range(self.n_frames):
+                self.fundThroughFrame[m] = \
+                findPeaksScipy(self.X_db[:, m], self.analysisParams.f_low / self.indexToFreq)[0]
+            self.fundThroughFrameSmoother = scipy.signal.medfilt(self.fundThroughFrame, N_moving_median)
+
+        # compute harmonics
+        Harmonic_freq, Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother,
+                                                               self.indexToFreq, False)
+        self.Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
+
+        plot_harmonics(Harmonic_freq, self.Harmonic_freqSmoother)
+
 
     def show_trajectories(self):
 
@@ -93,41 +100,48 @@ class AudioAnalysis:
         Harmonic_freq, Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother, self.indexToFreq, False)
         self.Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
-        # Computing trajectories
-        self.trajectories, trajectories_freq, trajectories_db = build_trajectories(Harmonic_db, self.Harmonic_freqSmoother)
 
         minAmp_db = np.min(Harmonic_db)
 
+        # Computing trajectories
+        self.trajectories, trajectories_freq, trajectories_db = build_trajectories(Harmonic_db,
+                                                                                   self.Harmonic_freqSmoother)
+
+        # Plot the found trajectories
+        plot_trajectories(trajectories_freq)
+
         # Deleting short trajectories (below specific minimum duration)
         self.trajectories, trajectories_freq, trajectories_db, self.Harmonic_db_filtered = \
-            delete_short_trajectories(self.trajectories, trajectories_freq, trajectories_db, Harmonic_db
-                                      , minTrajDuration, minAmp_db)
-
-        # Smoothening out frequency variation within each trajectory
-        self.trajectories, trajectories_freq, Harmonic_freq_filtered = \
-            smooth_trajectories_freq(self.trajectories, trajectories_freq, self.Harmonic_freqSmoother, minTrajDuration)
+            delete_short_trajectories(self.trajectories, trajectories_freq, trajectories_db, Harmonic_db,
+                                      minTrajDuration, minAmp_db)
 
         # Plot the smoothened trajectories, with intensity
         min_y, max_y = np.min(Harmonic_freq), np.max(Harmonic_freq)
-        plotSmoothTrajIntensity(trajectories_freq, trajectories_db, min_y, max_y)
+        title_traj = "Fundamental and its harmonics after deleting short trajectories"
 
+        plot_harmonics_intensity(self.Harmonic_freqSmoother, Harmonic_db, trajectories_freq, trajectories_db,
+                                 title_traj, min_y, max_y)
+
+        # Smoothening out frequency variation within each trajectory with Median
         self.trajectories, trajectories_freq, self.Harmonic_freqMedian = \
             smooth_trajectories_freq(self.trajectories, trajectories_freq, self.Harmonic_freqSmoother, minTrajDuration)
-        # Harmonic_freqSmoother should be used for resynthesis
-        # Harmonic_freq_Median should be used for fundamental_synthesis
+
+        # Harmonic_freqSmoother should be used for re-synthesis
+        # Harmonic_freq_Median should be used for custom_synthesis
+
 
     def resynthesize(self, file_path):
         if self.Harmonic_db_filtered is None:
             self.show_trajectories()
         harm_amp = librosa.db_to_amplitude(self.Harmonic_db_filtered)
-        bankosc = resynthesis(harm_amp, self.Harmonic_freqSmoother, self.Fs, self.hop_length)
-        wave_file_creation(bankosc, self.Fs, file_path)
+        bankosc = resynthesis(harm_amp, self.Harmonic_freqSmoother, self.Fs, self.hop_length, file_path)
+
 
     def customSynth(self, amplitude_array, inharmonicity_array, attack, decay, path_name):
         if self.Harmonic_freqMedian is None:
             self.show_trajectories()
         custom_synthesis(self.Harmonic_db_filtered, self.Harmonic_freqMedian, self.trajectories, amplitude_array,
-                                   inharmonicity_array, attack, decay, 0.01, self.Fs, self.hop_length, True, path_name)
+                                   inharmonicity_array, attack, decay, 0.1, self.Fs, self.hop_length, True, path_name)
 
 
 class AnalysisParameters:
