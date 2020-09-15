@@ -6,7 +6,7 @@ import scipy.signal
 
 from main import findPeaksScipy, findHarmonics_blockMethod, smootherHarmonics, build_trajectories, \
     delete_short_trajectories, smooth_trajectories_freq, plotSmoothTrajIntensity, oscillators_bank_synthesis, \
-    wave_file_creation, synthesis_from_fundamental, N_moving_median, minTrajDuration
+    wave_file_creation, resynthesis, custom_synthesis, N_moving_median, minTrajDuration
 
 
 class AudioAnalysis:
@@ -120,13 +120,13 @@ class AudioAnalysis:
         if self.Harmonic_db_filtered is None:
             self.show_trajectories()
         harm_amp = librosa.db_to_amplitude(self.Harmonic_db_filtered)
-        bankosc = oscillators_bank_synthesis(harm_amp, self.Harmonic_freqSmoother, self.Fs, self.hop_length)
+        bankosc = resynthesis(harm_amp, self.Harmonic_freqSmoother, self.Fs, self.hop_length)
         wave_file_creation(bankosc, self.Fs, file_path)
 
     def customSynth(self, amplitude_array, inharmonicity_array, attack, decay, path_name):
         if self.Harmonic_freqMedian is None:
             self.show_trajectories()
-        synthesis_from_fundamental(self.Harmonic_db_filtered, self.Harmonic_freqMedian, self.trajectories, amplitude_array,
+        custom_synthesis(self.Harmonic_db_filtered, self.Harmonic_freqMedian, self.trajectories, amplitude_array,
                                    inharmonicity_array, attack, decay, 0.01, self.Fs, self.hop_length, True, path_name)
 
 
