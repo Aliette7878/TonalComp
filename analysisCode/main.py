@@ -235,7 +235,8 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
     # Building Harmonic_db and Harmonic_freq
     for n in range(nframes):
         # We want to be able to compute interpolation, so at least size>3, and we want an odd number
-        Bw = max(4, 2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq))
+        Bw = max(8, 2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq))
+        # We always want Bw>4, and Bw=Bw/2 if k_th is close to Nyquist.
 
         if missingFundSearch:
             div = DivisorSmoother[n]
@@ -248,25 +249,26 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
 
             # Theoretical harmonic frequency
             k_th = math.floor((h + div) * fo)
+            k_inf = max(0, k_th - int(Bw / 2))
+            k_sup = k_inf + int(Bw)
 
-            # If the theoretical harmonic frequency is in the bandwidth, we can apply the block method
-            if k_th * indexToFreq > np.min([f_high, 0.90 * Fs / 2]):
+            # If the k_sup is out of the bandwidth, no block method
+            if k_th > np.min([f_high/indexToFreq, Nyq]):
                 harmonic_db[n, h] = np.min(xdB)
-                if n > 1:
-                    harmonic_freq[n, h] = harmonic_freq[n - 1, h]
-                else:
-                    harmonic_freq[n, h] = 0
+                if n>0:
+                    harmonic_freq[n, h] = harmonic_freq[n-1, h]
+                else :
+                    harmonic_freq[n, h] = fundThroughFrame[n]
 
             else:
                 # Draw the research block
-                k_inf = max(0, k_th - int(Bw/2))
-                k_inf = min(k_inf, Nyq)
-                Block = xdB[k_inf:min(k_inf + int(Bw), Nyq-1), n]
+                Block = xdB[k_inf:min(k_sup, Nyq-1), n] # because of the if condition above, block_size > Bw/2 > 4
 
+                # Find the block's maximum
                 maxB = max(Block)
                 k_maxB = np.argmax(Block, axis=0)
 
-                # Interpolation
+                # Interpolation for the exact maximum
                 if 0 < k_maxB <Bw - 1 and ParabolicInterpolation:
                     alpha = Block[k_maxB - 1]
                     beta = Block[k_maxB]
@@ -279,8 +281,11 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
 
                 # Store the interpolated peak
                 harmonic_db[n, h] = int_mag
-                if int_mag < silence_thres and n > 0:  # the pitch remains the same if a silence is detected
+                # If a silence is detected, the harmonic is kept constant.
+                # However, harmonic h must stay higher than the harmonic h-1, so if it's not the case, we raise it to its right place.
+                if int_mag < silence_thres and n > 0 and harmonic_freq[n, h] > harmonic_freq[n, max(0,h-1)] and h>0 :
                     harmonic_freq[n, h] = harmonic_freq[n - 1, h]
+                    harmonic_db[n, h] = np.min(X_db)
                 else:
                     harmonic_freq[n, h] = indexToFreq * int_loc
 
