@@ -18,7 +18,7 @@ for file in glob.glob("..\\demo_sound\\*.wav"):
 
 print(demo_files)
 
-example_number = 6
+example_number = 7
 path_name = demo_files[example_number - 1]
 audio, Fs = librosa.load(path_name, sr=None)
 print("Opening " + path_name)
@@ -28,7 +28,7 @@ print("Fs: ", Fs)
 
 ParabolicInterpolation = True
 MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
-envelopeADSR = False
+envelopeADSR = True
 
 # The bandwidth delimits the research of the fundamental and harmonics
 f_low = 150
@@ -126,8 +126,8 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 def plot_stft(x_db, f_s):
 
-    plt.figure(figsize=(10, 4))
-    librosa.display.specshow(x_db, y_axis='log', x_axis='time', sr=f_s)
+    plt.figure()
+    librosa.display.specshow(x_db, y_axis='log', x_axis='time', sr=f_s, cmap='viridis')
 
     plt.colorbar(format='%+2.0f dB')
     plt.title('Frequency spectrogram')
@@ -171,7 +171,7 @@ def findPeaksScipy(X, threshold):
 
 def plot_fundamental(fund, fund_smooth):
 
-    plt.figure(figsize=(15, 8))
+    plt.figure()
 
     plt.subplot(211)
     plt.plot(np.arange(len(fund)), fund, '.')
@@ -312,7 +312,7 @@ def smootherHarmonics(harmonic_freq, NmovingMedian):
 
 def plot_harmonics(harm_freq, harm_freq_smooth):
 
-    plt.figure(figsize=(15, 8))
+    plt.figure()
 
     plt.subplot(211)
     plt.title('Fundamental and its harmonics - block research method')
@@ -750,7 +750,7 @@ def custom_synthesis(harm_db, harm_freq, harm_orig_db, harm_orig_freq, traj, amp
 
 def plot_synthesis(audio_orig, audio_synth, title):
 
-    plt.figure(figsize=(10, 4))
+    plt.figure()
     plt.subplot(211)
     plt.title('Original audio file')
     plt.plot(np.arange(len(audio_orig)), audio_orig)
@@ -774,7 +774,7 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
     # 2. Synthesis from fundamental: Part with controlling harmonics
 
     file_path1 = "..\\synthesized_sound\\Synthesized_" + "example_" + str(example_number) + ".wav"
-    bankosc_resynth = resynthesis(Harmonic_db_filtered, Harmonic_freqSmoother, Fs, Hop_length, file_path1)
+    bankosc_resynth = resynthesis(Harmonic_db_filtered, Harmonic_freqSmoother, Fs, Hop_length)
 
     # Plotting the original and the re-synthesised audio files in time domain
     plot_synthesis(audio, bankosc_resynth, "Re-synthesized audio file")
