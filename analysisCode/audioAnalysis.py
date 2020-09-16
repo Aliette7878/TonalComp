@@ -135,7 +135,7 @@ class AudioAnalysis:
         bankosc_resynth = resynthesis(self.Harmonic_db_filtered, self.Harmonic_freqSmoother, self.Fs, self.hop_length)
 
         # Plotting the original and the re-synthesised audio files in time domain
-        plot_synthesis(self.audio, bankosc_resynth, "Re-synthesized audio file")
+        plot_synthesis(self.audio, self.Fs, bankosc_resynth, "Re-synthesized audio file")
 
         f = tk.filedialog.asksaveasfile(initialfile="resynthesisedSound", mode='w', defaultextension=".wav")
         path_name = f.name
@@ -153,7 +153,7 @@ class AudioAnalysis:
                                                 attack, decay, sustainampratio, self.Fs, self.hop_length, adsrBool)
 
         # Plotting the original and customarily synthesised audio files in time domain
-        plot_synthesis(self.audio, bankosc_custom_synth, "Customarily synthesized audio file")
+        plot_synthesis(self.audio, self.Fs, bankosc_custom_synth, "Customarily synthesized audio file")
         # Writing the file with controlled harmonics
         f = tk.filedialog.asksaveasfile(initialfile="customSynthesisedSound", mode='w', defaultextension=".wav")
         path_name = f.name

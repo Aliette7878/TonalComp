@@ -88,9 +88,9 @@ minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) # in frames
 # ----- Parameters of the custom synthesis ------
 
 # ADSR envelope: attack and decay in seconds, sustain in amplitude
-attack_sec = 0.2
-decay_sec = 0.1
-sustain_amp = 0.4
+attack_sec = 0.1
+decay_sec = 0.2
+sustain_amp = 0.6
 
 # Array of relative amplitudes for the N_h harmonics, with respect to the one of the fundamental frequency
 # Amplitudes_array takes values from [0,1], where 1 corresponds to the original amplitude of the fundamental frequency
@@ -98,8 +98,7 @@ if N_h == 1:
     Amplitudes_array = [1]
 else:
     Amplitudes_array = np.ones(N_h)
-    Amplitudes_array[0] = 0
-    Amplitudes_array[1] = 0
+
 
 # Array of relative frequency deviation for the N_h harmonics, with respect to exact multiples of the fundamental freq
 # Inharmonicity_array takes values from [-1,1], where 0 corresponds to no deviation, and +-1 to +-quarter tone
@@ -751,18 +750,22 @@ def custom_synthesis(harm_db, harm_freq, harm_orig_db, harm_orig_freq, traj, amp
     return bankosc
 
 
-def plot_synthesis(audio_orig, audio_synth, title):
+def plot_synthesis(audio_orig, f_s, audio_synth, title):
+
+    time = np.arange(0, len(audio_orig-1) / f_s, 1 / f_s)
 
     plt.figure()
     plt.subplot(211)
     plt.title('Original audio file')
-    plt.plot(np.arange(len(audio_orig)), audio_orig)
+    plt.plot(time, audio_orig, color="#ee680f")
     plt.ylabel("Amplitude")
     plt.xlabel("Time [s]")
 
+    time_synth = np.arange(0, len(audio_synth - 1) / f_s, 1 / f_s)
+
     plt.subplot(212)
     plt.title(title)
-    plt.plot(np.arange(len(audio_synth)), audio_synth)
+    plt.plot(time_synth, audio_synth, color="#ee680f")
     plt.ylabel("Amplitude")
     plt.xlabel("Time [s]")
 
@@ -780,7 +783,7 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
     bankosc_resynth = resynthesis(Harmonic_db_filtered, Harmonic_freqSmoother, Fs, Hop_length)
 
     # Plotting the original and the re-synthesised audio files in time domain
-    plot_synthesis(audio, bankosc_resynth, "Re-synthesized audio file")
+    plot_synthesis(audio, Fs, bankosc_resynth, "Re-synthesized audio file")
 
     # Writing the file with controlled harmonics
     wave_file_creation(bankosc_resynth, Fs, file_path1)
@@ -794,6 +797,6 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
                                             envelopeADSR)
 
     # Plotting the original and customarily synthesised audio files in time domain
-    plot_synthesis(audio, bankosc_custom_synth, "Customarily synthesized audio file")
+    plot_synthesis(audio, Fs, bankosc_custom_synth, "Customarily synthesized audio file")
     # Writing the file with controlled harmonics
     wave_file_creation(bankosc_custom_synth, Fs, file_path2)
