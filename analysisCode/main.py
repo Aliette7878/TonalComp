@@ -97,8 +97,9 @@ sustain_amp = 0.4
 if N_h == 1:
     Amplitudes_array = [1]
 else:
-    Amplitudes_array = np.ones(N_h) * 0.5
-    Amplitudes_array[0] = 1
+    Amplitudes_array = np.ones(N_h)
+    Amplitudes_array[0] = 0
+    Amplitudes_array[1] = 0
 
 # Array of relative frequency deviation for the N_h harmonics, with respect to exact multiples of the fundamental freq
 # Inharmonicity_array takes values from [-1,1], where 0 corresponds to no deviation, and +-1 to +-quarter tone
@@ -623,7 +624,7 @@ def oscillators_bank_synthesis(harm_amp, harm_freq, f_s, hop_length):
     return out_bankosc
 
 
-def adsr_amp(traj, harm_amp, attack, decay, sustainAmp):
+def adsr_amp(traj, harm_amp, attack, decay, sustain_ratio):
     """Defines the amplitude of each trajectory according to the ADSR parameters attack, decay and sustain
 
     :param traj: The array of trajectories, after deleting short trajectories and smoothening the longer ones
@@ -664,13 +665,15 @@ def adsr_amp(traj, harm_amp, attack, decay, sustainAmp):
                         # if the trajectory is longer than the sum of attack time and decay time
                         if traj_start + attack_frames + decay_frames < traj_end:
                             harm_amp_adsr[traj_start + attack_frames + 1: traj_start + attack_frames + decay_frames + 1, i] = \
-                                linear_interpolation(max_value_amp, sustainAmp, decay_frames)
+                                linear_interpolation(max_value_amp, sustain_ratio * max_value_amp, decay_frames)
                             harm_amp_adsr[traj_start + attack_frames + decay_frames + 1: traj_end + 1, i] = \
-                                np.ones(traj_end - traj_start - attack_frames - decay_frames) * sustainAmp;
+                                np.ones(traj_end - traj_start - attack_frames - decay_frames) * sustain_ratio \
+                                * max_value_amp
 
                         else:
                             harm_amp_adsr[traj_start + attack_frames + 1: traj_end + 1, i] =\
-                                linear_interpolation(max_value_amp, sustainAmp, traj_end - traj_start - attack_frames)
+                                linear_interpolation(max_value_amp, sustain_ratio * max_value_amp,
+                                                     traj_end - traj_start - attack_frames)
 
                     # if the trajectory is shorter than the attack time, interpolate the whole trajectory from
                     # the minimum value to the highest peak
