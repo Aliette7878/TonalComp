@@ -34,13 +34,23 @@ librosa_display_subplt = f.add_subplot(111)
 myaudio = type('AudioAnalysis', (), {})()
 myaudio = None
 
-tutorial_parameters_text = "The first step of the analysis will be to process the audio input through a Short Time Fourier Transform. \n" \
-                           "Some parameters of the STFT highly influence the accuracy of the analysis. For example: \n\n" \
-                           "- The length of one analysis window determine the time definition of the analysis,\n" \
-                           "  as well as the minimum difference there has to be between 2 frequencies to distinguish them\n" \
-                           "- Then the length of this windows once zero padded will also be the length of its FFT,\n" \
-                           "  and defines the frequency definition of the spectrum of this each window of the signal.\n\n" \
-                           "To be continued..."
+tutorial_parameters_text = "The first step of the analysis is to process the audio input through a Short Time Fourier Transform. \n" \
+                           "Some parameters of the windowing and of the FFT highly influence the accuracy of the analysis. For example: \n\n" \
+                           " Window \n" \
+                           "- The shortest the analysis window is, the better the time resolution of the analysis. \n" \
+                           "- The longest the analysis window is, the smaller gets the minimum difference there has to be between \n" \
+                           "  2 peaks to distinguish them. Since we are working on monophonic harmonic sounds, two consecutive peaks are two consecutive harmonics of the sound. \n\n" \
+                           "FFT length \n" \
+                           "- The length of this windows is zero padded to a power of two to get the length of the FFT,\n" \
+                           "  which defines the frequency resolution of the spectrum of this each window of the signal.\n" \
+                           "- If the length of the fft doesn't meet the Just Noticeable Difference criteria, it will be \n" \
+                           "   automatically increased until the frequency resolution is lower than the JND. \n\n" \
+                           "- Be aware of possible memory errors in case of too long fft. \n\n" \
+                           "Bandwidth \n" \
+                           "- f_min and f_high delimit a search area for the fundamental and harmonics' frequencies. \n" \
+                           "- f_min also determines the peak resolution, since the window is designed to resolve peaks spaced by f_min. \n" \
+                           "- f_min is finally used in the peak finding function, that can't find peaks (harmonics) spaced by a distance shorter than f_min. \n" \
+
 
 
 def popupmsg(msg):
@@ -201,8 +211,8 @@ class StartPage(tk.Frame):
         tk.Label(parametersFrame, text="Analysis parameters", font=LARGE_FONT, background=self.paramBg).grid(row=0,
                                                                                         sticky="nsew", padx=15, pady=15)
 
-        tk.Label(parametersFrame, text="win_length multiplicator (>1)", background=self.paramBg).grid(row=1, sticky="e")
-        tk.Label(parametersFrame, text="N_fft multiplicator", background=self.paramBg).grid(row=2, sticky="e")
+        tk.Label(parametersFrame, text="window's length multiplicator (>1)", background=self.paramBg).grid(row=1, sticky="e")
+        tk.Label(parametersFrame, text="fft length multiplicator", background=self.paramBg).grid(row=2, sticky="e")
 
         self.winLength_mul_str = tk.StringVar()
         self.nfft_mul_str = tk.StringVar()
