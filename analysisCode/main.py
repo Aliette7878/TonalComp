@@ -28,10 +28,10 @@ print("Fs: ", Fs)
 
 ParabolicInterpolation = True
 MissingFundSearch = False  # # Do you want to look for a missing fundamental ?
-envelopeADSR = True
+envelopeADSR = False
 
 # The bandwidth delimits the research of the fundamental and harmonics
-f_low = 170
+f_low = 150
 f_high = 18000
 
 
@@ -728,16 +728,17 @@ def resynthesis(harm_db, harm_freq, fs, hop_length, path_name):
     return bankosc
 
 
-def custom_synthesis(harm_db, harm_freq, traj, amplitudes_array, inharm_array, attack,
+def custom_synthesis(harm_db, harm_freq, harm_orig_db, harm_orig_freq, traj, amplitudes_array, inharm_array, attack,
                                decay, sustain_ampl, fs, hop_length, envelope_adsr, path_name):
 
     harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
     fund_freq = harm_freq[:, 0]
 
     harmonic_amp = librosa.db_to_amplitude(harm_db)
+    harmonic_amp[harmonic_amp <= 0.0001] = 0
+    fund_amp = harmonic_amp[:, 0]
 
     harmonic_amp_additive = np.zeros((harm_db.shape[0], harm_db.shape[1]))
-    fund_amp = harmonic_amp[:, 0]
 
     for i in range(harmonic_amp_additive.shape[1]):
         harmonic_amp_additive[:, i] = fund_amp * amplitudes_array[i]
@@ -752,7 +753,7 @@ def custom_synthesis(harm_db, harm_freq, traj, amplitudes_array, inharm_array, a
     min_y, max_y = np.min(harmonic_freq_additive), np.max(harmonic_freq_additive)
 
     title_traj_median = "Fundamental and harmonics after the custom synthesis"
-    plot_harmonics_intensity(harm_freq, harm_db, traj_add_freq, traj_add_db,
+    plot_harmonics_intensity(harm_orig_freq, harm_orig_db, traj_add_freq, traj_add_db,
                              title_traj_median, min_y, max_y)
 
     bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, fs, hop_length)
@@ -795,6 +796,7 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
     bankosc_resynth = resynthesis(Harmonic_db_filtered, Harmonic_freqSmoother, Fs, Hop_length, file_path1)
 
     file_path2 = "..\\synthesized_sound\\Synthesized_" + "custom_example_" + str(example_number) + ".wav"
-    bankosc_custom_synth = custom_synthesis(Harmonic_db_filtered, Harmonic_freqMedian, trajectories, Amplitudes_array,
+    bankosc_custom_synth = custom_synthesis(Harmonic_db_filtered, Harmonic_freqMedian, Harmonic_db,
+                                            Harmonic_freqSmoother, trajectories, Amplitudes_array,
                                             Inharmonicity_array, attack_sec, decay_sec, sustain_amp, Fs, Hop_length,
                                             envelopeADSR, file_path2)
