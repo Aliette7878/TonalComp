@@ -97,6 +97,7 @@ def show_trajectory():
     else:
         myaudio.show_trajectories()
 
+
 def prepare_resynthesis():
     if myaudio is None:
         popupmsg("ERROR : no audio file processed currently")
@@ -171,7 +172,7 @@ class StartPage(tk.Frame):
                                      "or pick an example"), font=LARGE_FONT)
         label.grid(row=0, pady=30, sticky="nsew")
 
-        listbox = tk.Listbox(self)
+        listbox = tk.Listbox(self, height=10)
         listbox.grid(row=1, padx=50, sticky="nsew")
 
         self.selectedPath = ""
@@ -195,7 +196,7 @@ class StartPage(tk.Frame):
 
         self.paramBg = "grey70"
         parametersFrame = tk.Frame(self, height=150, background=self.paramBg)
-        parametersFrame.grid(row=4, padx=100, pady=50)
+        parametersFrame.grid(row=4, padx=100, pady=30)
 
         tk.Label(parametersFrame, text="Analysis parameters", font=LARGE_FONT, background=self.paramBg).grid(row=0,
                                                                                         sticky="nsew", padx=15, pady=15)
@@ -207,6 +208,7 @@ class StartPage(tk.Frame):
         self.nfft_mul_str = tk.StringVar()
         self.fmin_str = tk.StringVar()
         self.fmax_str = tk.StringVar()
+        self.minTrajSec = tk.StringVar()
 
         self.winLength_mul_str.set("1")
         # choices = ['0.25', '0.5', '1', '2', '4']
@@ -214,6 +216,7 @@ class StartPage(tk.Frame):
         self.nfft_mul_str.set('1')
         self.fmin_str.set("150")
         self.fmax_str.set("18000")
+        self.minTrajSec.set("0.1")
         e1 = tk.Entry(parametersFrame, textvariable=self.winLength_mul_str, width=15)
         e2 = tk.OptionMenu(parametersFrame, self.nfft_mul_str, *choices)
         e1.grid(row=1, column=1, sticky="w", padx=5)
@@ -231,8 +234,16 @@ class StartPage(tk.Frame):
         tk.Label(parametersFrame, text="Hz", background=self.paramBg).grid(row=4, column=2, sticky="w", padx=(0,20))
         tk.Label(parametersFrame, text="Hz", background=self.paramBg).grid(row=5, column=2, sticky="w", padx=(0,20), pady=(0, 20))
 
+        tk.Label(parametersFrame, text="Smoothering", font=NORM_FONT, background=self.paramBg).grid(row=6, sticky="e", pady=(10, 0))
+
+        tk.Label(parametersFrame, text="minimum trajectory length", background=self.paramBg).grid(row=7, sticky="e", pady=(0, 20))
+
+        e5 = tk.Entry(parametersFrame, textvariable=self.minTrajSec, width=15)
+        e5.grid(row=7, column=1, sticky="w", padx=5, pady=(0, 20))
+        tk.Label(parametersFrame, text="seconds", background=self.paramBg).grid(row=7, column=2, sticky="w", padx=(0,20), pady=(0, 20))
+
         buttonMore = ttk.Button(parametersFrame, text="Learn more about these parameters", command=lambda: popupmsg(tutorial_parameters_text))
-        buttonMore.grid(row=6, column=0, columnspan=3)
+        buttonMore.grid(row=8, column=0, columnspan=3)
 
         def goAction():
             controller.show_frame(LoadingPage)
@@ -243,7 +254,7 @@ class StartPage(tk.Frame):
             try:
                 print(float(self.winLength_mul_str.get()))
                 print(float(self.nfft_mul_str.get()))
-                analysisParams = audioAnalysis.AnalysisParameters(int(self.fmin_str.get()), int(self.fmax_str.get()))
+                analysisParams = audioAnalysis.AnalysisParameters(int(self.fmin_str.get()), int(self.fmax_str.get()), float(self.minTrajSec.get()))
                 myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams, float(self.winLength_mul_str.get()), float(self.nfft_mul_str.get()))
             except ValueError:
                 controller.show_frame(StartPage)
@@ -263,7 +274,7 @@ class StartPage(tk.Frame):
             print(f"\n\nCanvas drawing in {time.time()-time_3} seconds")
 
         self.button3 = ttk.Button(self, text="GO", width=50, state=tk.DISABLED, command=goAction)
-        self.button3.grid(row=5, padx=50, pady=50)
+        self.button3.grid(row=5, padx=50, pady=10)
 
     def selectFile(self):
         filename = tk.filedialog.askopenfilename(filetypes=(("Audio files (wav,m4a)", "*.wav;*.m4a")
@@ -388,6 +399,9 @@ class CustomSynthesisPage(tk.Frame):
                 labelDecayValue.grid()
                 labels.grid()
                 labels2.grid()
+                labelSustainAmp.grid()
+                sustainAmpSc.grid()
+                labelSustainAmpValue.grid()
             else:
                 labelAttack.grid_remove()
                 labelDecay.grid_remove()
@@ -397,6 +411,9 @@ class CustomSynthesisPage(tk.Frame):
                 labelDecayValue.grid_remove()
                 labels.grid_remove()
                 labels2.grid_remove()
+                labelSustainAmp.grid_remove()
+                sustainAmpSc.grid_remove()
+                labelSustainAmpValue.grid_remove()
 
         customEnv = tk.BooleanVar()
         customEnv.set(1)
@@ -406,18 +423,26 @@ class CustomSynthesisPage(tk.Frame):
         labelAttack.grid(row=8, column=1, padx=10, pady=10)
         labelDecay = tk.Label(self, text="decay time", font=SMALL_FONT)
         labelDecay.grid(row=9, column=1, padx=10, pady=10)
+        labelSustainAmp = tk.Label(self, text="sustain/attack\namplitude ratio", font=SMALL_FONT)
+        labelSustainAmp.grid(row=10, column=1, padx=10, pady=0)
         attack_value = tk.DoubleVar()
         decay_value = tk.DoubleVar()
+        sustain_ratio_value = tk.DoubleVar()
         attack_value.set(0.08)
         decay_value.set(0.05)
+        sustain_ratio_value.set(0.4)
         attackSc = ttk.Scale(self, orient='horizontal', from_=0.01, to=0.5, variable=attack_value)
         attackSc.grid(row=8, column=2, columnspan=2, padx=10)
         decaySc = ttk.Scale(self, orient='horizontal', from_=0.01, to=0.5, variable=decay_value)
         decaySc.grid(row=9, column=2, columnspan=2, padx=10)
+        sustainAmpSc = ttk.Scale(self, orient='horizontal', from_=0.01, to=1, variable=sustain_ratio_value)
+        sustainAmpSc.grid(row=10, column=2, columnspan=2, padx=10)
         labelAttackValue = tk.Label(self, textvariable=attack_value, font=SMALL_FONT, width=5, anchor='w')
         labelAttackValue.grid(row=8, column=4, pady=10)
         labelDecayValue = tk.Label(self, textvariable=decay_value, font=SMALL_FONT, width=5, anchor='w')
         labelDecayValue.grid(row=9, column=4, pady=10)
+        labelSustainAmpValue = tk.Label(self, textvariable=sustain_ratio_value, font=SMALL_FONT, width=5, anchor='w')
+        labelSustainAmpValue.grid(row=10, column=4, pady=10)
         labels = tk.Label(self, text='sec', font=SMALL_FONT)
         labels.grid(row=8, column=4, padx=(0, 5), pady=10, sticky="e")
         labels2 = tk.Label(self, text='sec', font=SMALL_FONT)
@@ -434,13 +459,15 @@ class CustomSynthesisPage(tk.Frame):
                     inharmonicity_array[j] = inHarmonicityVarList[j].get()
                 attack = attack_value.get()
                 decay = decay_value.get()
+                sustainampratio = sustain_ratio_value.get()
 
-                myaudio.customSynth(amplitude_array, inharmonicity_array, customEnv.get(), attack, decay)
+                myaudio.customSynth(amplitude_array, inharmonicity_array, customEnv.get(), attack, decay, sustainampratio)
 
         goButton = ttk.Button(self, text='Go', command=goCommand)
-        goButton.grid(row=12, column=0, padx=12)
+        goButton.grid(row=12, column=0, columnspan=13, padx=12, pady=(80, 10), sticky="s")
 
 
 app = TonalCompGui()
 app.geometry("1280x720")
+app.resizable(False, False)
 app.mainloop()

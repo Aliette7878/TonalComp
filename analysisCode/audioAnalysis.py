@@ -5,10 +5,9 @@ import matplotlib.pyplot as plt
 import scipy.signal
 import tkinter as tk
 
-from main import findPeaksScipy, plot_fundamental, findHarmonics_blockMethod, smootherHarmonics, \
-    plot_harmonics, build_trajectories, delete_short_trajectories, smooth_trajectories_freq, \
-    plot_trajectories, plot_harmonics_intensity, plot_synthesis, \
-    wave_file_creation, resynthesis, custom_synthesis, N_moving_median, minTrajDuration, sustain_amp
+from main import findPeaksScipy, plot_fundamental, findHarmonics_blockMethod, smootherHarmonics, plot_harmonics, \
+    build_trajectories, delete_short_trajectories, smooth_trajectories_freq, plot_trajectories, \
+    plot_harmonics_intensity, plot_synthesis, wave_file_creation, resynthesis, custom_synthesis, N_moving_median
 
 
 class AudioAnalysis:
@@ -27,6 +26,8 @@ class AudioAnalysis:
         self.N_fft = math.floor(self.N_fft**nfft_mul)
         self.indexToFreq = self.Fs / self.N_fft
         self.hop_length = math.floor(self.win_length / analysisParams.hop_ratio)
+        # minTrajDuration in frame number
+        self.minTrajDuration = round(self.analysisParams.minTrajDuration_seconds * self.Fs / self.hop_length)
 
         self.n_frames = math.floor((len(self.audio)) / self.hop_length) + 1
 
@@ -112,7 +113,7 @@ class AudioAnalysis:
         # Deleting short trajectories (below specific minimum duration)
         self.trajectories, trajectories_freq, trajectories_db, self.Harmonic_db_filtered = \
             delete_short_trajectories(self.trajectories, trajectories_freq, trajectories_db, self.Harmonic_db,
-                                      minTrajDuration, minAmp_db)
+                                      self.minTrajDuration, minAmp_db)
 
         # Plot the smoothened trajectories, with intensity
         min_y, max_y = np.min(Harmonic_freq), np.max(Harmonic_freq)
@@ -123,7 +124,7 @@ class AudioAnalysis:
 
         # Smoothening out frequency variation within each trajectory with Median
         self.trajectories, trajectories_freq, self.Harmonic_freqMedian = \
-            smooth_trajectories_freq(self.trajectories, trajectories_freq, self.Harmonic_freqSmoother, minTrajDuration)
+            smooth_trajectories_freq(self.trajectories, trajectories_freq, self.Harmonic_freqSmoother, self.minTrajDuration)
 
         # Harmonic_freqSmoother should be used for re-synthesis
         # Harmonic_freq_Median should be used for custom_synthesis
@@ -144,12 +145,12 @@ class AudioAnalysis:
         # Writing the file with controlled harmonics
         wave_file_creation(bankosc_resynth, self.Fs, path_name)
 
-    def customSynth(self, amplitude_array, adsrBool, inharmonicity_array, attack, decay):
+    def customSynth(self, amplitude_array, inharmonicity_array, adsrBool, attack, decay, sustainampratio):
         if self.Harmonic_freqMedian is None:
             self.show_trajectories()
         bankosc_custom_synth = custom_synthesis(self.Harmonic_db_filtered, self.Harmonic_freqMedian, self.Harmonic_db,
                                                 self.Harmonic_freqSmoother, self.trajectories, amplitude_array, inharmonicity_array,
-                                                attack, decay, sustain_amp, self.Fs, self.hop_length, adsrBool)
+                                                attack, decay, sustainampratio, self.Fs, self.hop_length, adsrBool)
 
         # Plotting the original and customarily synthesised audio files in time domain
         plot_synthesis(self.audio, bankosc_custom_synth, "Customarily synthesized audio file")
@@ -166,9 +167,10 @@ class AnalysisParameters:
     d_fmin = 30
     hop_ratio = 4
 
-    def __init__(self, fmin, fmax):
+    def __init__(self, fmin, fmax, minTrajDuration_seconds):
         self.f_low = fmin
         self.f_high = fmax
+        self.minTrajDuration_seconds = minTrajDuration_seconds
         self.N_h = 10
         self.win_type = "hamming"   # Window type
         self.L = 4                  # Smoothness factor of the chosen window's type
