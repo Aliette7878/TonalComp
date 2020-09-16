@@ -95,11 +95,7 @@ def prepare_resynthesis():
     if myaudio is None:
         popupmsg("ERROR : no audio file processed currently")
     else:
-        f = tk.filedialog.asksaveasfile(initialfile="resynthesisedSound", mode='w', defaultextension=".wav")
-        path_name = f.name
-        f.close()
-        print(path_name)
-        myaudio.resynthesize(path_name)
+        myaudio.resynthesize()
 
 
 def backtolobby(parent):
@@ -250,7 +246,7 @@ class StartPage(tk.Frame):
             print(f"\n\nComputation in {time.time()-time_1} seconds")
             time_2 = time.time()
             librosa_display_subplt.clear()
-            librosa.display.specshow(myaudio.X_db, y_axis='log', x_axis='time', ax=librosa_display_subplt)
+            librosa.display.specshow(myaudio.X_db, sr=myaudio.Fs, y_axis='log', x_axis='frames', ax=librosa_display_subplt)
             plt.title('Frequency spectrogram')  # not working
             print(f"\n\nLibrosa display computation in {time.time()-time_2} seconds")
             time_3 = time.time()
@@ -403,11 +399,6 @@ class CustomSynthesisPage(tk.Frame):
             if myaudio is None:
                 popupmsg("ERROR : no audio file processed currently")
             else:
-                f = tk.filedialog.asksaveasfile(initialfile="customSynthesisedSound", mode='w', defaultextension=".wav")
-                path_name = f.name
-                f.close()
-                print(path_name)
-
                 amplitude_array = np.zeros(harm_number)
                 inharmonicity_array = np.zeros(harm_number)
                 for j in range(harm_number):
@@ -416,7 +407,7 @@ class CustomSynthesisPage(tk.Frame):
                 attack = attack_value.get()
                 decay = decay_value.get()
 
-                myaudio.customSynth(amplitude_array, inharmonicity_array, attack, decay, path_name)
+                myaudio.customSynth(amplitude_array, inharmonicity_array, attack, decay)
 
         goButton = ttk.Button(self, text='Go', command=goCommand)
         goButton.grid(row=12, column=0, padx=12)

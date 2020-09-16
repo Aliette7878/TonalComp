@@ -90,7 +90,7 @@ minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) # in frames
 # ADSR envelope: attack and decay in seconds, sustain in amplitude
 attack_sec = 0.2
 decay_sec = 0.1
-sustain_amp = 0.01
+sustain_amp = 0.4
 
 # Array of relative amplitudes for the N_h harmonics, with respect to the one of the fundamental frequency
 # Amplitudes_array takes values from [0,1], where 1 corresponds to the original amplitude of the fundamental frequency
@@ -122,6 +122,7 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
     print("Inharmonicity array = " + str(Inharmonicity_array))
 
 # ------------------------------------------ STFT ------------------------------------------
+
 
 def plot_stft(x_db, f_s):
 
@@ -158,8 +159,8 @@ def findPeaksScipy(X, threshold):
     x = np.copy(X)
     x[0:int(threshold)] = np.min(x)       # The peaks of low frequencies are not to be considered for the search
 
-    height = max(np.max(x)-30, -70)      # The to-be-found peak of the fundamental is allowed to be 30dB under
-                                         # the loudest harmonic, or not lower than -70dB
+    height = max(np.max(x)-30, -70)     # The to-be-found peak of the fundamental is allowed to be 30dB under
+                                        # the loudest harmonic, or not lower than -70dB
 
     distance = max(threshold, 1)         # The peaks are supposed to be spaced by at least a specified value, in this case f_low
     peakIndexes = scipy.signal.find_peaks(x, height=height, threshold=None, distance=distance)[0]
@@ -223,7 +224,7 @@ def real_fundamental(peakLoc_List, foo):
     return divisor
 
 
-def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSearch):
+def findHarmonics_blockMethod(xdB, fundamentalList, indextofreq, missingFundSearch):
 
     nframes = len(fundamentalList)
     # Initialization of storage vectors that include fundamental and harmonics
@@ -236,7 +237,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
     if missingFundSearch:
         Divisor = []
         for n in range(nframes):
-            peakLoc_List = findPeaksScipy(X_db[:, n], f_low / indexToFreq)
+            peakLoc_List = findPeaksScipy(X_db[:, n], f_low / indextofreq)
             divisor = real_fundamental(peakLoc_List, fundamentalList[n])
             Divisor.append(divisor)
         DivisorSmoother = scipy.signal.medfilt(Divisor, N_moving_median)
@@ -244,7 +245,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
     # Building Harmonic_db and Harmonic_freq
     for n in range(nframes):
         # We want to be able to compute interpolation, so at least size>3, and we want an odd number
-        Bw = max(8, 2*int(0.9 * (1/2) * fundamentalList[n] / indexToFreq))
+        Bw = max(8, 2*int(0.9 * (1/2) * fundamentalList[n] / indextofreq))
         # We always want Bw>4, and Bw=Bw/2 if k_th is close to Nyquist.
 
         if missingFundSearch:
@@ -262,7 +263,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
             k_sup = k_inf + int(Bw)
 
             # If the k_sup is out of the bandwidth, no block method
-            if k_th > np.min([f_high/indexToFreq, Nyq]):
+            if k_th > np.min([f_high/indextofreq, Nyq]):
                 harmonic_db[n, h] = np.min(xdB)
                 if n>0:
                     harmonic_freq[n, h] = harmonic_freq[n-1, h]
@@ -271,14 +272,14 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
 
             else:
                 # Draw the research block
-                Block = xdB[k_inf:min(k_sup, Nyq-1), n] # because of the if condition above, block_size > Bw/2 > 4
+                Block = xdB[k_inf:min(k_sup, Nyq-1), n]     # because of the if condition above, block_size > Bw/2 > 4
 
                 # Find the block's maximum
                 maxB = max(Block)
                 k_maxB = np.argmax(Block, axis=0)
 
                 # Interpolation for the exact maximum
-                if 0 < k_maxB <Bw - 1 and ParabolicInterpolation:
+                if 0 < k_maxB < len(Block) - 1 and ParabolicInterpolation:
                     alpha = Block[k_maxB - 1]
                     beta = Block[k_maxB]
                     gamma = Block[k_maxB + 1]
@@ -292,11 +293,11 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indexToFreq, missingFundSear
                 harmonic_db[n, h] = int_mag
                 # If a silence is detected, the harmonic is kept constant.
                 # However, harmonic h must stay higher than the harmonic h-1, so if it's not the case, we raise it to its right place.
-                if int_mag < silence_thres and n > 0 and harmonic_freq[n, h] > harmonic_freq[n, max(0,h-1)] and h>0 :
+                if int_mag < silence_thres and n > 0 and harmonic_freq[n, h] > harmonic_freq[n, max(0, h-1)] and h > 0:
                     harmonic_freq[n, h] = harmonic_freq[n - 1, h]
                     harmonic_db[n, h] = np.min(X_db)
                 else:
-                    harmonic_freq[n, h] = indexToFreq * int_loc
+                    harmonic_freq[n, h] = indextofreq * int_loc
 
     return harmonic_freq, harmonic_db
 
@@ -339,18 +340,15 @@ if __name__ == "__main__":
 
 # ------------------------------------------- TRAJECTORIES ------------------------------------------
 
-'''
-Building the trajectories according to the evolution of the frequency of each harmonic through time.
-The two consecutive frames are set to belong to the same trajectory if the absolute distance between their
-corresponding frequencies is less than a predefined value (around a quarter of a tone).
-It is assumed that through all frames, even in the moments of inharmonicity or very low amplitude, the sound is
-represented by exactly N_h harmonics ([f0, f1, f2...fN_h-1]).
-'''
+# Building the trajectories according to the evolution of the frequency of each harmonic through time.
+# The two consecutive frames are set to belong to the same trajectory if the absolute distance between their
+# corresponding frequencies is less than a predefined value (around a quarter of a tone).
+# It is assumed that through all frames, even in the moments of inharmonicity or very low amplitude, the sound is
+# represented by exactly N_h harmonics ([f0, f1, f2...fN_h-1]).
 
 
 def build_trajectories(Harm_db, Harm_freq):
-    '''
-    Marks the starting points of new trajectories, according to the distance between consecutive samples.
+    """Marks the starting points of new trajectories, according to the distance between consecutive samples.
     Returns the array of marked points (traj), the array of frequencies according to
 
     :param Harm_db: 2D array of amplitudes in dB of all harmonics through frames
@@ -362,7 +360,7 @@ def build_trajectories(Harm_db, Harm_freq):
               or they belong to a newly formed one
         traj_db: 2D array of amplitudes in dB through frame, according to whether they belong to a previous trajectory
               or to a newly formed one
-    '''
+    """
 
     traj_index = np.zeros((Harm_db.shape[0], Harm_db.shape[1]))
     traj_freq = np.zeros((Harm_db.shape[0], 2 * Harm_db.shape[1]))
@@ -403,8 +401,7 @@ def build_trajectories(Harm_db, Harm_freq):
 
 
 def delete_short_trajectories(traj_index, traj_freq, traj_db, Harm_db, min_traj_duration, min_amp_db):
-    '''
-    Deletes the trajectories whose length is shorter than the predefined min_traj_duration.
+    """Deletes the trajectories whose length is shorter than the predefined min_traj_duration.
     The deleting is done by putting the amplitude in dB of a corresponding sample in Harm_db to a predefined minimum value.
 
     :param traj, traj_freq, traj_db: Previously found arrays of previously built trajectories
@@ -414,8 +411,7 @@ def delete_short_trajectories(traj_index, traj_freq, traj_db, Harm_db, min_traj_
     :return:
         traj, traj_freq, traj_db: Modified arrays after "deleting" short trajectories
         harm_db_filtered: Modified original array of amplitudes in dB, after "deleting" short trajectories
-    '''
-
+    """
 
     harm_db_filtered = np.copy(Harm_db)
 
@@ -498,7 +494,6 @@ def plot_trajectories(traj_freq):
     plt.show()
 
 
-
 def subplot_harmonics_intensity(plot, ax, harm_freq, harm_db, n_h, miny, maxy, title):
 
     x = np.arange(len(harm_freq[:, 0]))
@@ -542,6 +537,7 @@ def plot_harmonics_intensity(harm_freq, harm_db, traj_freq, traj_db, title2, min
     ax2 = subplot_harmonics_intensity(plt, ax2, traj_freq, traj_db, n_h*2, miny, maxy, title2)
     plt.show()
 
+
 if __name__ == "__main__":
 
     minAmp_db = np.min(Harmonic_db)
@@ -574,13 +570,11 @@ if __name__ == "__main__":
 
 
 def linear_interpolation(a, b, n):
-
-    '''
-    Linearly interpolating n samples from value a to value b
+    """Linearly interpolating n samples from value a to value b
     :param a: starting value
     :param b: ending value
     :param n: number of samples to put between the starting and the ending value
-    '''
+    """
     if n-1:
         s = np.arange(n) * (b - a) / (n - 1) + np.ones(n) * a
     else:
@@ -630,15 +624,14 @@ def oscillators_bank_synthesis(harm_amp, harm_freq, f_s, hop_length):
 
 
 def adsr_amp(traj, harm_amp, attack, decay, sustainAmp):
-    '''
-    Defines the amplitude of each trajectory according to the ADSR parameters attack, decay and sustain
+    """Defines the amplitude of each trajectory according to the ADSR parameters attack, decay and sustain
 
     :param traj: The array of trajectories, after deleting short trajectories and smoothening the longer ones
     :param harm_amp: A 2D array of amplitudes of all harmonics through frames
     :param attack: Attack time in seconds - time until reaching the maximum amplitude in the trajectory
     :param decay: Decay time in seconds - time for reaching the constant sustain amplitude after the maximum amplitude point
     :param sustainAmp: The final amplitude of the trajectory after the decay time
-    '''
+    """
 
     harm_amp_adsr = np.copy(harm_amp)
     attack_frames = round(attack * Fs / Hop_length)
@@ -715,21 +708,15 @@ def wave_file_creation(out_bankosc, f_s, file_path):
     print(file_path + " saved")
 
 
-def resynthesis(harm_db, harm_freq, fs, hop_length, path_name):
+def resynthesis(harm_db, harm_freq, fs, hop_length):
     harm_amp = librosa.db_to_amplitude(harm_db)
     bankosc = oscillators_bank_synthesis(harm_amp, harm_freq, fs, hop_length)
-
-    # Plotting the original and the re-synthesised audio files in time domain
-    plot_synthesis(audio, bankosc, "Re-synthesized audio file")
-
-    # Writing the file with controlled harmonics
-    wave_file_creation(bankosc, fs, path_name)
 
     return bankosc
 
 
 def custom_synthesis(harm_db, harm_freq, harm_orig_db, harm_orig_freq, traj, amplitudes_array, inharm_array, attack,
-                               decay, sustain_ampl, fs, hop_length, envelope_adsr, path_name):
+                               decay, sustain_ampl, fs, hop_length, envelope_adsr):
 
     harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
     fund_freq = harm_freq[:, 0]
@@ -757,12 +744,6 @@ def custom_synthesis(harm_db, harm_freq, harm_orig_db, harm_orig_freq, traj, amp
                              title_traj_median, min_y, max_y)
 
     bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, fs, hop_length)
-
-    # Plotting the original and customarily synthesised audio files in time domain
-    plot_synthesis(audio, bankosc, "Customarily synthesized audio file")
-
-    # Writing the file with controlled harmonics
-    wave_file_creation(bankosc, fs, path_name)
 
     return bankosc
 
@@ -795,8 +776,21 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
     file_path1 = "..\\synthesized_sound\\Synthesized_" + "example_" + str(example_number) + ".wav"
     bankosc_resynth = resynthesis(Harmonic_db_filtered, Harmonic_freqSmoother, Fs, Hop_length, file_path1)
 
+    # Plotting the original and the re-synthesised audio files in time domain
+    plot_synthesis(audio, bankosc_resynth, "Re-synthesized audio file")
+
+    # Writing the file with controlled harmonics
+    wave_file_creation(bankosc_resynth, Fs, file_path1)
+
+
+
     file_path2 = "..\\synthesized_sound\\Synthesized_" + "custom_example_" + str(example_number) + ".wav"
     bankosc_custom_synth = custom_synthesis(Harmonic_db_filtered, Harmonic_freqMedian, Harmonic_db,
                                             Harmonic_freqSmoother, trajectories, Amplitudes_array,
                                             Inharmonicity_array, attack_sec, decay_sec, sustain_amp, Fs, Hop_length,
-                                            envelopeADSR, file_path2)
+                                            envelopeADSR)
+
+    # Plotting the original and customarily synthesised audio files in time domain
+    plot_synthesis(audio, bankosc_custom_synth, "Customarily synthesized audio file")
+    # Writing the file with controlled harmonics
+    wave_file_creation(bankosc_custom_synth, Fs, file_path2)
