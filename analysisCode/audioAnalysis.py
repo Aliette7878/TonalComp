@@ -82,7 +82,7 @@ class AudioAnalysis:
 
         # compute harmonics
         Harmonic_freq, self.Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother,
-                                                               self.indexToFreq, False)
+                                                                    self.indexToFreq, False)
         self.Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
         plot_harmonics(Harmonic_freq, self.Harmonic_freqSmoother)
@@ -144,12 +144,12 @@ class AudioAnalysis:
         # Writing the file with controlled harmonics
         wave_file_creation(bankosc_resynth, self.Fs, path_name)
 
-    def customSynth(self, amplitude_array, inharmonicity_array, attack, decay):
+    def customSynth(self, amplitude_array, adsrBool, inharmonicity_array, attack, decay):
         if self.Harmonic_freqMedian is None:
             self.show_trajectories()
         bankosc_custom_synth = custom_synthesis(self.Harmonic_db_filtered, self.Harmonic_freqMedian, self.Harmonic_db,
                                                 self.Harmonic_freqSmoother, self.trajectories, amplitude_array, inharmonicity_array,
-                                                attack, decay, sustain_amp, self.Fs, self.hop_length, True)
+                                                attack, decay, sustain_amp, self.Fs, self.hop_length, adsrBool)
 
         # Plotting the original and customarily synthesised audio files in time domain
         plot_synthesis(self.audio, bankosc_custom_synth, "Customarily synthesized audio file")
@@ -176,5 +176,3 @@ class AnalysisParameters:
         if self.f_low < self.d_fmin:
             self.d_f = self.d_fmin
             print('\033[93m' + f"WARNING: f_low chosen too low, and therefore changed to {self.d_fmin}")
-
-

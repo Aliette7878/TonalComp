@@ -91,6 +91,12 @@ def show_fundamental():
         myaudio.showfundamental()
 
 
+def show_trajectory():
+    if myaudio is None:
+        popupmsg("ERROR : no audio file processed currently")
+    else:
+        myaudio.show_trajectories()
+
 def prepare_resynthesis():
     if myaudio is None:
         popupmsg("ERROR : no audio file processed currently")
@@ -127,7 +133,7 @@ class TonalCompGui(tk.Tk):
         analysismenu = tk.Menu(menubar, tearoff=0)
         analysismenu.add_command(label="show frame", command=ask_frame_num)
         analysismenu.add_command(label="show fundamental", command=show_fundamental)
-        analysismenu.add_command(label="show final trajectories", command=lambda: myaudio.show_trajectories())
+        analysismenu.add_command(label="show final trajectories", command=show_trajectory)
         menubar.add_cascade(label="Analysis", menu=analysismenu)
 
         synthmenu = tk.Menu(menubar, tearoff=0)
@@ -357,7 +363,7 @@ class CustomSynthesisPage(tk.Frame):
             inHarmonicityVarList[i].set(0)
 
             harmoScale = ttk.Scale(self, orient='vertical', from_=1, to=0, variable=amplitudeVarList[i])
-            harmoScale.grid(row=3, column=i+1, padx=10)
+            harmoScale.grid(row=3, column=i+1, padx=30)
             labelValue = tk.Label(self, textvariable=amplitudeVarList[i], font=SMALL_FONT, width=4, anchor='w')
             labelValue.grid(row=3, column=i+1, padx=15)
 
@@ -372,8 +378,30 @@ class CustomSynthesisPage(tk.Frame):
                 label = tk.Label(self, text="f"+str(i), font=SMALL_FONT)
                 label.grid(row=6, column=i+1, padx=10, pady=5)
 
-        envelopeLabel = tk.Label(self, text="custom the envelope", font=NORM_FONT)
-        envelopeLabel.grid(row=7, column=1, columnspan=6, pady=(30, 15))
+        def checkBoxToggle():
+            if customEnv.get():
+                labelAttack.grid()
+                labelDecay.grid()
+                attackSc.grid()
+                decaySc.grid()
+                labelAttackValue.grid()
+                labelDecayValue.grid()
+                labels.grid()
+                labels2.grid()
+            else:
+                labelAttack.grid_remove()
+                labelDecay.grid_remove()
+                attackSc.grid_remove()
+                decaySc.grid_remove()
+                labelAttackValue.grid_remove()
+                labelDecayValue.grid_remove()
+                labels.grid_remove()
+                labels2.grid_remove()
+
+        customEnv = tk.BooleanVar()
+        customEnv.set(1)
+        radioEnv = tk.Checkbutton(self, text="custom the envelope", variable=customEnv, command=checkBoxToggle)
+        radioEnv.grid(row=7, column=1, columnspan=6, pady=(40, 15))
         labelAttack = tk.Label(self, text="attack time", font=SMALL_FONT)
         labelAttack.grid(row=8, column=1, padx=10, pady=10)
         labelDecay = tk.Label(self, text="decay time", font=SMALL_FONT)
@@ -383,17 +411,17 @@ class CustomSynthesisPage(tk.Frame):
         attack_value.set(0.08)
         decay_value.set(0.05)
         attackSc = ttk.Scale(self, orient='horizontal', from_=0.01, to=0.5, variable=attack_value)
-        attackSc.grid(row=8, column=2, padx=10)
+        attackSc.grid(row=8, column=2, columnspan=2, padx=10)
         decaySc = ttk.Scale(self, orient='horizontal', from_=0.01, to=0.5, variable=decay_value)
-        decaySc.grid(row=9, column=2, padx=10)
+        decaySc.grid(row=9, column=2, columnspan=2, padx=10)
         labelAttackValue = tk.Label(self, textvariable=attack_value, font=SMALL_FONT, width=5, anchor='w')
-        labelAttackValue.grid(row=8, column=3, padx=(5, 0), pady=10)
+        labelAttackValue.grid(row=8, column=4, pady=10)
         labelDecayValue = tk.Label(self, textvariable=decay_value, font=SMALL_FONT, width=5, anchor='w')
-        labelDecayValue.grid(row=9, column=3, padx=(5, 0), pady=10)
+        labelDecayValue.grid(row=9, column=4, pady=10)
         labels = tk.Label(self, text='sec', font=SMALL_FONT)
-        labels.grid(row=8, column=3, padx=(0, 2), pady=10, sticky="e")
+        labels.grid(row=8, column=4, padx=(0, 5), pady=10, sticky="e")
         labels2 = tk.Label(self, text='sec', font=SMALL_FONT)
-        labels2.grid(row=9, column=3, padx=(0, 2), pady=10, sticky="e")
+        labels2.grid(row=9, column=4, padx=(0, 5), pady=10, sticky="e")
 
         def goCommand():
             if myaudio is None:
@@ -407,7 +435,7 @@ class CustomSynthesisPage(tk.Frame):
                 attack = attack_value.get()
                 decay = decay_value.get()
 
-                myaudio.customSynth(amplitude_array, inharmonicity_array, attack, decay)
+                myaudio.customSynth(amplitude_array, inharmonicity_array, customEnv.get(), attack, decay)
 
         goButton = ttk.Button(self, text='Go', command=goCommand)
         goButton.grid(row=12, column=0, padx=12)
