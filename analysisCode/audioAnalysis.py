@@ -83,7 +83,7 @@ class AudioAnalysis:
 
         # compute harmonics
         Harmonic_freq, self.Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother,
-                                                                    self.indexToFreq, True)
+                                                                    self.indexToFreq, False)
         self.Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
         plot_harmonics(Harmonic_freq, self.Harmonic_freqSmoother)
@@ -98,7 +98,7 @@ class AudioAnalysis:
             self.fundThroughFrameSmoother = scipy.signal.medfilt(self.fundThroughFrame, N_moving_median)
 
         # compute harmonics
-        Harmonic_freq, self.Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother, self.indexToFreq, True)
+        Harmonic_freq, self.Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother, self.indexToFreq, False)
         self.Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
         minAmp_db = np.min(self.Harmonic_db)
