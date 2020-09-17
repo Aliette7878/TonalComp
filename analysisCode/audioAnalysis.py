@@ -10,6 +10,7 @@ from main import findPeaksScipy, plot_fundamental, findHarmonics_blockMethod, sm
     plot_harmonics_intensity, plot_synthesis, wave_file_creation, resynthesis, custom_synthesis, N_moving_median
 
 
+# Object containing all informations related to the audio file analysed.
 class AudioAnalysis:
 
     def __init__(self, pathName, analysisParams, winLength_mul=1, nfft_mul=1):
@@ -83,7 +84,7 @@ class AudioAnalysis:
 
         # compute harmonics
         Harmonic_freq, self.Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother,
-                                                                    self.indexToFreq, False)
+                                                                    self.indexToFreq, self.analysisParams.noFundBool)
         self.Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
         plot_harmonics(Harmonic_freq, self.Harmonic_freqSmoother)
@@ -98,7 +99,8 @@ class AudioAnalysis:
             self.fundThroughFrameSmoother = scipy.signal.medfilt(self.fundThroughFrame, N_moving_median)
 
         # compute harmonics
-        Harmonic_freq, self.Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother, self.indexToFreq, False)
+        Harmonic_freq, self.Harmonic_db = findHarmonics_blockMethod(self.X_db, self.fundThroughFrameSmoother,
+                                                                    self.indexToFreq, self.analysisParams.noFundBool)
         self.Harmonic_freqSmoother = smootherHarmonics(Harmonic_freq, N_moving_median)
 
         minAmp_db = np.min(self.Harmonic_db)
@@ -149,8 +151,9 @@ class AudioAnalysis:
         if self.Harmonic_freqMedian is None:
             self.show_trajectories()
         bankosc_custom_synth = custom_synthesis(self.Harmonic_db_filtered, self.Harmonic_freqMedian, self.Harmonic_db,
-                                                self.Harmonic_freqSmoother, self.trajectories, amplitude_array, inharmonicity_array,
-                                                attack, decay, sustainampratio, self.Fs, self.hop_length, adsrBool)
+                                                self.Harmonic_freqSmoother, self.trajectories, amplitude_array,
+                                                inharmonicity_array, attack, decay, sustainampratio, self.Fs,
+                                                self.hop_length, adsrBool)
 
         # Plotting the original and customarily synthesised audio files in time domain
         plot_synthesis(self.audio, self.Fs, bankosc_custom_synth, "Customarily synthesized audio file")
@@ -162,16 +165,18 @@ class AudioAnalysis:
         wave_file_creation(bankosc_custom_synth, self.Fs, path_name)
 
 
+# Object containing some parameters of the analysis that are independent from attributes of the AudioAnalysis isntance.
 class AnalysisParameters:
 
     d_fmin = 30
     hop_ratio = 4
 
-    def __init__(self, fmin, fmax, minTrajDuration_seconds):
+    def __init__(self, fmin, fmax, minTrajDuration_seconds, noFundBool):
         self.f_low = fmin
         self.f_high = fmax
         self.minTrajDuration_seconds = minTrajDuration_seconds
-        self.N_h = 10
+        self.noFundBool = noFundBool
+        # self.N_h = 10
         self.win_type = "hamming"   # Window type
         self.L = 4                  # Smoothness factor of the chosen window's type
         self.d_f = self.f_low

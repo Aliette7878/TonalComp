@@ -34,25 +34,27 @@ librosa_display_subplt = f.add_subplot(111)
 myaudio = type('AudioAnalysis', (), {})()
 myaudio = None
 
-tutorial_parameters_text = "The first step of the analysis is to process the audio input through a Short Time Fourier Transform. \n" \
-                           "Some parameters of the windowing and of the FFT highly influence the accuracy of the analysis. For example: \n\n" \
-                           " Window \n" \
-                           "- The shortest the analysis window is, the better the time resolution of the analysis. \n" \
-                           "- The longest the analysis window is, the smaller gets the minimum difference there has to be between \n" \
-                           "  2 peaks to distinguish them. Since we are working on monophonic harmonic sounds, two consecutive peaks are two consecutive harmonics of the sound. \n\n" \
-                           "FFT length \n" \
-                           "- The length of this windows is zero padded to a power of two to get the length of the FFT,\n" \
-                           "  which defines the frequency resolution of the spectrum of this each window of the signal.\n" \
-                           "- If the length of the fft doesn't meet the Just Noticeable Difference criteria, it will be \n" \
-                           "   automatically increased until the frequency resolution is lower than the JND. \n\n" \
-                           "- Be aware of possible memory errors in case of too long fft. \n\n" \
-                           "Bandwidth \n" \
-                           "- f_min and f_high delimit a search area for the fundamental and harmonics' frequencies. \n" \
-                           "- f_min also determines the peak resolution, since the window is designed to resolve peaks spaced by f_min. \n" \
-                           "- f_min is finally used in the peak finding function, that can't find peaks (harmonics) spaced by a distance shorter than f_min. \n" \
+tutorial_parameters_text = \
+    "The first step of the analysis is to process the audio input through a Short Time Fourier Transform. \n" \
+    "Some parameters of the windowing and of the FFT highly influence the accuracy of the analysis. For example: \n\n" \
+    " Window \n" \
+    "- The shortest the analysis window is, the better the time resolution of the analysis. \n" \
+    "- The longest the analysis window is, the smaller gets the minimum difference there has to be between \n" \
+    "  2 peaks to distinguish them. Since we are working on monophonic harmonic sounds, two consecutive peaks are two consecutive harmonics of the sound. \n\n" \
+    "FFT length \n" \
+    "- The length of this windows is zero padded to a power of two to get the length of the FFT,\n" \
+    "  which defines the frequency resolution of the spectrum of this each window of the signal.\n" \
+    "- If the length of the fft doesn't meet the Just Noticeable Difference criteria, it will be \n" \
+    "   automatically increased until the frequency resolution is lower than the JND. \n\n" \
+    "- Be aware of possible memory errors in case of too long fft. \n\n" \
+    "Bandwidth \n" \
+    "- f_min and f_high delimit a search area for the fundamental and harmonics' frequencies. \n" \
+    "- f_min also determines the peak resolution, since the window is designed to resolve peaks spaced by f_min. \n" \
+    "- f_min is finally used in the peak finding function, that can't find peaks (harmonics) spaced by a distance shorter than f_min. \n" \
 
 
 
+# simple function that popup a message in a dialog window.
 def popupmsg(msg):
     popup = tk.Tk()
     popup.wm_title("!")
@@ -63,6 +65,8 @@ def popupmsg(msg):
     popup.mainloop()
 
 
+# function that prepare the functionnality "show audio frame" by checking the validity of the parameter num_value
+# which is the frame number that we want to see
 def show_audio_frame(tk_win, num_value):
     tk_win.destroy()
     try:
@@ -115,12 +119,14 @@ def prepare_resynthesis():
         myaudio.resynthesize()
 
 
+# function that resets the instance myaudio (class AudioAnalysis) before going back to the start page.
 def backtolobby(parent):
     global myaudio
     myaudio = None
     parent.show_frame(StartPage)
 
 
+# Implementation of the application, inheritting from tkinter class Tk
 class TonalCompGui(tk.Tk):
 
     def __init__(self, *args, **kwargs):
@@ -134,6 +140,7 @@ class TonalCompGui(tk.Tk):
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
 
+        # Menu bar
         menubar = tk.Menu(container)
         filemenu = tk.Menu(menubar, tearoff=0)
         filemenu.add_command(label="Back to lobby", command=lambda: backtolobby(self))
@@ -154,6 +161,7 @@ class TonalCompGui(tk.Tk):
 
         tk.Tk.config(self, menu=menubar)
 
+        # Creating the pages that will compose the application, and adding it to the dictionnary self.frames
         self.frames = {}
 
         for F in (StartPage, LoadingPage, MainPage, CustomSynthesisPage):
@@ -165,6 +173,7 @@ class TonalCompGui(tk.Tk):
 
         self.show_frame(StartPage)
 
+    # Method of our app that permits to navigate from one frame to another
     def show_frame(self, cont):
         if cont == MainPage:    # This is the wrong place to do it but I didn't find better yet
             self.frames[cont].infosText.set(myaudio.pathName+"\n\nFs: "+str(myaudio.Fs)+"\nN_fft: "+str(myaudio.N_fft) +
@@ -173,6 +182,8 @@ class TonalCompGui(tk.Tk):
         frame.tkraise()
 
 
+# "Lobby", or starting page that shows up when executing the app. In here you will select your audio file to analyse
+# and chose some parameters of the analysis.
 class StartPage(tk.Frame):
 
     def __init__(self, parent, controller):
@@ -180,7 +191,7 @@ class StartPage(tk.Frame):
         self.grid_columnconfigure(0, weight=1)
         label = tk.Label(self, text=("Hi and welcome to TonalComp. \nSelect an audio file, "
                                      "or pick an example"), font=LARGE_FONT)
-        label.grid(row=0, pady=30, sticky="nsew")
+        label.grid(row=0, pady=(10, 30), sticky="nsew")
 
         listbox = tk.Listbox(self, height=10)
         listbox.grid(row=1, padx=50, sticky="nsew")
@@ -197,7 +208,7 @@ class StartPage(tk.Frame):
         listbox.bind("<<ListboxSelect>>", selectItem)
 
         button1 = ttk.Button(self, text="Select your own file file", command=lambda: self.selectFile())
-        button1.grid(row=2)
+        button1.grid(row=2, padx=50, sticky="e")
 
         self.labelText = tk.StringVar()
         self.labelText.set("no audio file selected")
@@ -206,10 +217,10 @@ class StartPage(tk.Frame):
 
         self.paramBg = "grey70"
         parametersFrame = tk.Frame(self, height=150, background=self.paramBg)
-        parametersFrame.grid(row=4, padx=100, pady=30)
+        parametersFrame.grid(row=4, padx=100, pady=20)
 
-        tk.Label(parametersFrame, text="Analysis parameters", font=LARGE_FONT, background=self.paramBg).grid(row=0,
-                                                                                        sticky="nsew", padx=15, pady=15)
+        analParamLabel = tk.Label(parametersFrame, text="Analysis parameters", font=LARGE_FONT, background=self.paramBg)
+        analParamLabel.grid(row=0, sticky="nsew", padx=15, pady=15)
 
         tk.Label(parametersFrame, text="window's length multiplicator (>1)", background=self.paramBg).grid(row=1, sticky="e")
         tk.Label(parametersFrame, text="fft length multiplicator", background=self.paramBg).grid(row=2, sticky="e")
@@ -241,8 +252,8 @@ class StartPage(tk.Frame):
         e4 = tk.Entry(parametersFrame, textvariable=self.fmax_str, width=15)
         e3.grid(row=4, column=1, sticky="w", padx=5)
         e4.grid(row=5, column=1, sticky="w", padx=5, pady=(0, 20))
-        tk.Label(parametersFrame, text="Hz", background=self.paramBg).grid(row=4, column=2, sticky="w", padx=(0,20))
-        tk.Label(parametersFrame, text="Hz", background=self.paramBg).grid(row=5, column=2, sticky="w", padx=(0,20), pady=(0, 20))
+        tk.Label(parametersFrame, text="Hz", background=self.paramBg).grid(row=4, column=2, sticky="w", padx=(0, 20))
+        tk.Label(parametersFrame, text="Hz", background=self.paramBg).grid(row=5, column=2, sticky="w", padx=(0, 20), pady=(0, 20))
 
         tk.Label(parametersFrame, text="Smoothering", font=NORM_FONT, background=self.paramBg).grid(row=6, sticky="e", pady=(10, 0))
 
@@ -250,10 +261,17 @@ class StartPage(tk.Frame):
 
         e5 = tk.Entry(parametersFrame, textvariable=self.minTrajSec, width=15)
         e5.grid(row=7, column=1, sticky="w", padx=5, pady=(0, 20))
-        tk.Label(parametersFrame, text="seconds", background=self.paramBg).grid(row=7, column=2, sticky="w", padx=(0,20), pady=(0, 20))
+        sec = tk.Label(parametersFrame, text="seconds", background=self.paramBg)
+        sec.grid(row=7, column=2, sticky="w", padx=(0, 20), pady=(0, 20))
 
-        buttonMore = ttk.Button(parametersFrame, text="Learn more about these parameters", command=lambda: popupmsg(tutorial_parameters_text))
-        buttonMore.grid(row=8, column=0, columnspan=3)
+        noFundBool = tk.BooleanVar()
+        noFundCheckBx = tk.Checkbutton(parametersFrame, text="Consider the possibility of a missing fundamental "
+                                                             "frequency", variable=noFundBool, background=self.paramBg)
+        noFundCheckBx.grid(row=8, column=0, columnspan=3, sticky="w", padx=(15, 30), pady=5)
+
+        buttonMore = ttk.Button(parametersFrame, text="Learn more about these parameters",
+                                command=lambda: popupmsg(tutorial_parameters_text))
+        buttonMore.grid(row=9, column=0, columnspan=3)
 
         def goAction():
             controller.show_frame(LoadingPage)
@@ -264,8 +282,10 @@ class StartPage(tk.Frame):
             try:
                 print(float(self.winLength_mul_str.get()))
                 print(float(self.nfft_mul_str.get()))
-                analysisParams = audioAnalysis.AnalysisParameters(int(self.fmin_str.get()), int(self.fmax_str.get()), float(self.minTrajSec.get()))
-                myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams, float(self.winLength_mul_str.get()), float(self.nfft_mul_str.get()))
+                analysisParams = audioAnalysis.AnalysisParameters(int(self.fmin_str.get()), int(self.fmax_str.get()),
+                                                                  float(self.minTrajSec.get()), noFundBool.get())
+                myaudio = audioAnalysis.AudioAnalysis(self.selectedPath, analysisParams, float(self.winLength_mul_str.get()),
+                                                      float(self.nfft_mul_str.get()))
             except ValueError:
                 controller.show_frame(StartPage)
                 popupmsg("ERROR : Analysis parameters entry format error or in any way too presumptuous")
@@ -287,8 +307,8 @@ class StartPage(tk.Frame):
         self.button3.grid(row=5, padx=50, pady=10)
 
     def selectFile(self):
-        filename = tk.filedialog.askopenfilename(filetypes=(("Audio files (wav,m4a)", "*.wav;*.m4a")
-                                                ,("All files", "*.*")))  # mp3 not supported yet (can be with ffmpeg)
+        filename = tk.filedialog.askopenfilename(filetypes=(("Audio files (wav,m4a)", "*.wav;*.m4a"),
+                                                    ("All files", "*.*")))  # mp3 not supported yet (can be with ffmpeg)
         if filename:
             try:
                 if Path(filename).stat().st_size < 10000000:    # if file size < 10MB
@@ -302,6 +322,7 @@ class StartPage(tk.Frame):
                 return
 
 
+# Loading page that distracts the user during the analysis computation.
 class LoadingPage(tk.Frame):
 
     def __init__(self, parent, controller):
@@ -310,6 +331,8 @@ class LoadingPage(tk.Frame):
         label.pack(pady=10, padx=10)
 
 
+# Main page that appears ones STFT of the audio file is computed. From here you can navigate through differents options
+# of the analysis and the synthesis
 class MainPage(tk.Frame):
 
     def __init__(self, parent, controller):
@@ -348,6 +371,7 @@ class MainPage(tk.Frame):
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
 
+# Page from which we set all parameters for the custom synthesis (harmonics amplitude, inharmonicity, ADSR enveloppe)
 class CustomSynthesisPage(tk.Frame):
 
     def __init__(self, parent, controller):
@@ -477,7 +501,8 @@ class CustomSynthesisPage(tk.Frame):
         goButton.grid(row=12, column=0, columnspan=13, padx=12, pady=(80, 10), sticky="s")
 
 
+# Creating and launching the app
 app = TonalCompGui()
 app.geometry("1280x720")
-app.resizable(False, False)
+app.resizable(False, False)     # Some plots (like the stft) are a bit heavy and resizing the window can cause issues.
 app.mainloop()
