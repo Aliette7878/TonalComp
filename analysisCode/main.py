@@ -34,8 +34,8 @@ envelopeADSR = True
 f_low = 150
 f_high = 18000
 
-
-N_moving_median = 19  # Maybe not a user option
+# Number of frames that a median filter will be applied to
+N_moving_median = 19
 
 # ------------------------------------------ WINDOWING ------------------------------------------
 
@@ -85,9 +85,9 @@ minTrajDuration_seconds = 0.1
 minTrajDuration = round(minTrajDuration_seconds * Fs / Hop_length) # in frames
 
 
-# ----- Parameters of the custom synthesis ------
+# ----- Parameters of the customized synthesis ------
 
-# ADSR envelope: attack and decay in seconds, sustain in amplitude
+# ADSR envelope: attack and decay in seconds, sustain as a ratio with respect to the highest amplitude peak
 attack_sec = 0.1
 decay_sec = 0.2
 sustain_amp = 0.6
@@ -340,44 +340,46 @@ if __name__ == "__main__":
 
 # ------------------------------------------- TRAJECTORIES ------------------------------------------
 
-# Building the trajectories according to the evolution of the frequency of each harmonic through time.
+# Building the trajectories according to the frequency evolution of each harmonic through time.
 # The two consecutive frames are set to belong to the same trajectory if the absolute distance between their
-# corresponding frequencies is less than a predefined value (around a quarter of a tone).
+# corresponding frequencies is less than a predefined value (set to around a quarter of a tone).
 # It is assumed that through all frames, even in the moments of inharmonicity or very low amplitude, the sound is
 # represented by exactly N_h harmonics ([f0, f1, f2...fN_h-1]).
 
 
 def build_trajectories(Harm_db, Harm_freq):
     """Marks the starting points of new trajectories, according to the distance between consecutive samples.
-    Returns the array of marked points (traj), the array of frequencies according to
 
     :param Harm_db: 2D array of amplitudes in dB of all harmonics through frames
     :param Harm_freq: 2D array of frequencies in Hz of all harmonics through frames
     :return:
-        traj: 2D array of marked starting points of new trajectories for each of the harmonic. For each frame,
-              takes values of 1 or 2, where the change of the value represents the start of a new trajectory
-        traj_freq: 2D array of frequencies through frames, according to whether they belong to a previous trajectory
-              or they belong to a newly formed one
-        traj_db: 2D array of amplitudes in dB through frame, according to whether they belong to a previous trajectory
-              or to a newly formed one
+        traj_index: 2D array of marked starting points of new trajectories for each of the harmonics. For each frame,
+              traj_index takes values of 1 or 2, where the change of the value represents the start of a new trajectory
+        traj_freq: 2D array of frequencies through frames. The frequency values are written in (2*i)-th or (2*i+1)-th row,
+              according to whether they start a newly formed trajectory or they belong to a previous one
+        traj_db: 2D array of amplitudes in dB through frames. The values are written in (2*i)-th or (2*i+1)-th row,
+              according to whether they start a newly formed trajectory or they belong to a previous one
     """
 
     traj_index = np.zeros((Harm_db.shape[0], Harm_db.shape[1]))
     traj_freq = np.zeros((Harm_db.shape[0], 2 * Harm_db.shape[1]))
     traj_db = np.zeros((Harm_db.shape[0], 2 * Harm_db.shape[1]))
 
-    for m in range(Harm_db.shape[0] - 1):
+    for m in range(Harm_db.shape[0] - 1):     # going through all frames
 
-        for i in range(Harm_db.shape[1]):
+        for i in range(Harm_db.shape[1]):     # going through all harmonics
 
+            # in the very first frame, set traj_index to 1, write values of harm_freq and harm_db in the (2*i)-th row
             if m == 0:
                 traj_index[m, i] = 1
                 traj_freq[m, i * 2] = Harm_freq[m, i]
                 traj_db[m, i * 2] = Harm_db[m, i]
             else:
-                freq_distance = abs(Harm_freq[m, i] - Harm_freq[m - 1, i])        # measure freq distance
+                freq_distance = abs(Harm_freq[m, i] - Harm_freq[m - 1, i])        # measure the frequency distance
                 freq_dev_offset = (Harm_freq[m - 1, i]) * (pow(2, 1 / 24) - 1)    # the quarter of a tone
-                if freq_distance < freq_dev_offset:      # if belongs to the same previous trajectory
+
+                # if the frequency of the current [frame,harmonic] belongs to the same previous trajectory
+                if freq_distance < freq_dev_offset:
                     traj_index[m, i] = traj_index[m - 1, i]
                     if traj_freq[m - 1, i * 2] == 0:
                         traj_freq[m, i * 2 + 1] = Harm_freq[m, i]
@@ -385,7 +387,9 @@ def build_trajectories(Harm_db, Harm_freq):
                     else:
                         traj_freq[m, i * 2] = Harm_freq[m, i]
                         traj_db[m, i * 2] = Harm_db[m, i]
-                else:                                    # if new trajectory should begin
+
+                # if the frequency of the current [frame,harmonic] belongs to a new trajectory to be formed
+                else:
                     if traj_index[m - 1, i] == 1:
                         traj_index[m, i] = 2
                     elif traj_index[m - 1, i] == 2:
@@ -402,12 +406,12 @@ def build_trajectories(Harm_db, Harm_freq):
 
 def delete_short_trajectories(traj_index, traj_freq, traj_db, Harm_db, min_traj_duration, min_amp_db):
     """Deletes the trajectories whose length is shorter than the predefined min_traj_duration.
-    The deleting is done by putting the amplitude in dB of a corresponding sample in Harm_db to a predefined minimum value.
+    The deleting is done by setting the value of a corresponding sample in Harm_db to a predefined minimum value.
 
-    :param traj, traj_freq, traj_db: Previously found arrays of previously built trajectories
+    :param traj_index, traj_freq, traj_db: 2D arrays corresponding to the trajectories found by build_trajectories
     :param Harm_db: A 2D array of amplitudes in dB of all harmonics through frames
-    :param min_traj_duration: predefined number of frames that correspon to a minimum length of a trajectory
-    :param min_amp_db: predefined minimum value to assign to the samples that are to be "deleted"
+    :param min_traj_duration: The number of frames, that corresponds to a minimum length of a trajectory that is to be kept
+    :param min_amp_db: A predefined minimum value to assign to the samples that are to be "deleted"
     :return:
         traj, traj_freq, traj_db: Modified arrays after "deleting" short trajectories
         harm_db_filtered: Modified original array of amplitudes in dB, after "deleting" short trajectories
@@ -415,17 +419,23 @@ def delete_short_trajectories(traj_index, traj_freq, traj_db, Harm_db, min_traj_
 
     harm_db_filtered = np.copy(Harm_db)
 
-    for i in range(traj_index.shape[1]):
+    for i in range(traj_index.shape[1]):            # going through all harmonics
 
-        for m in range(traj_index.shape[0] - 1):
+        for m in range(traj_index.shape[0] - 1):    # going through all frames
 
             if m == 0:
                 traj_start = m
+
+            # if the traj_index of the current frame differs from the one of the previous frame
             elif traj_index[m, i] != traj_index[m - 1, i]:
                 traj_start = m
+
+            # if the traj_index of the current frame differs from the one of the next frame
             if traj_index[m, i] != traj_index[m + 1, i]:
                 traj_end = m
-                if (traj_end - traj_start >= 0) & (traj_end - traj_start < min_traj_duration):  # if under predefined minimum length
+
+                # if the length of a currently considered trajectory is under the predefined minimum length
+                if (traj_end - traj_start >= 0) & (traj_end - traj_start < min_traj_duration):
                     traj_index[traj_start: traj_end + 1, i] = 0
                     traj_freq[traj_start: traj_end + 1, i * 2: i * 2 + 2] = 0
                     traj_db[traj_start: traj_end + 1, i * 2: i * 2 + 2] = min_amp_db
@@ -447,14 +457,25 @@ def cursorMedian(y, order):
 
 
 def smooth_trajectories_freq(traj_index, traj_freq, Harm_freq, min_traj_duration):
+    """Smoothens the frequency evolution within the same trajectory, by applying the cursorMedian function.
+    It applies only for the trajectories whose length is above than the min_traj_duration
 
-    Harm_freq_filtered = np.copy(Harm_freq)
+    :param traj_index, traj_freq: 2D arrays corresponding to the trajectories found by build_trajectories,
+        possibly after deleting the short ones
+    :param Harm_freq: A 2D array of frequencies of all harmonics through frames
+    :param min_traj_duration: The number of frames, that corresponds to a minimum length of a trajectory that is to be kept
+    :return:
+        traj_index, traj_freq: Modified arrays of trajectories after the process of smoothening
+        harm_freq_filtered: Modified original array of frequencies, after the process of smoothening
+    """
 
-    for i in range(traj_index.shape[1]):
+    harm_freq_filtered = np.copy(Harm_freq)
 
-        first_start_found = 0
+    for i in range(traj_index.shape[1]):             # going through all harmonics
 
-        for m in range(traj_index.shape[0] - 1):
+        first_start_found = 0             # if the first starting point (!=0) for the current harmonic is already found
+
+        for m in range(traj_index.shape[0] - 1):     # going through all frames
 
             if (m == 0) & (traj_index[m, i] != 0):
                 traj_start = m
@@ -464,9 +485,12 @@ def smooth_trajectories_freq(traj_index, traj_freq, Harm_freq, min_traj_duration
                 first_start_found = 1
             if first_start_found & (traj_index[m, i] != traj_index[m + 1, i]):
                 traj_end = m
+
+                # if the length of a currently considered trajectory is above the predefined minimum length
                 if (traj_end - traj_start >= 0) & (traj_end - traj_start > min_traj_duration):
 
-                    Harm_freq_filtered[traj_start: traj_end + 1, i] = cursorMedian(Harm_freq[traj_start: traj_end + 1, i], 1)
+                    harm_freq_filtered[traj_start: traj_end + 1, i] =\
+                        cursorMedian(Harm_freq[traj_start: traj_end + 1, i], 1)
 
                     if traj_index[traj_end, i] == 1:
                         traj_freq[traj_start: traj_end + 1, 2 * i] = \
@@ -476,7 +500,7 @@ def smooth_trajectories_freq(traj_index, traj_freq, Harm_freq, min_traj_duration
                         traj_freq[traj_start: traj_end + 1, 2 * i + 1] =\
                             cursorMedian(traj_freq[traj_start: traj_end + 1, 2 * i + 1], 1)
 
-    return traj_index, traj_freq, Harm_freq_filtered
+    return traj_index, traj_freq, harm_freq_filtered
 
 
 def plot_trajectories(traj_freq):
@@ -548,7 +572,7 @@ if __name__ == "__main__":
     # Plot the trajectories, without representing intensity
     plot_trajectories(trajectories_freq)
 
-    # Deleting short trajectories (below specific minimum duration)
+    # Deleting short trajectories (below the specified minimum duration)
     trajectories, trajectories_freq, trajectories_db, Harmonic_db_filtered =\
         delete_short_trajectories(trajectories, trajectories_freq, trajectories_db, Harmonic_db, minTrajDuration
                                   , minAmp_db)
@@ -563,8 +587,8 @@ if __name__ == "__main__":
     # Smoothening out frequency variation within each trajectory
     trajectories, trajectories_freq, Harmonic_freqMedian =\
         smooth_trajectories_freq(trajectories, trajectories_freq, Harmonic_freqSmoother, minTrajDuration)
-    # Harmonic_freqSmoother should be used for resynthesis
-    # Harmonic_freq_Median should be used for fundamental_synthesis
+    # Harmonic_freqSmoother should be used for re-synthesis
+    # Harmonic_freq_Median should be used for custom_synthesis
 
 # ------------------------------------------ PART 2 : SYNTHESIS ------------------------------------------
 
@@ -624,24 +648,27 @@ def oscillators_bank_synthesis(harm_amp, harm_freq, f_s, hop_length):
 
 
 def adsr_amp(traj, harm_amp, attack, decay, sustain_ratio):
-    """Defines the amplitude of each trajectory according to the ADSR parameters attack, decay and sustain
+    """Defines the amplitude of each trajectory according to the ADSR parameters: attack, decay and sustain
 
     :param traj: The array of trajectories, after deleting short trajectories and smoothening the longer ones
     :param harm_amp: A 2D array of amplitudes of all harmonics through frames
-    :param attack: Attack time in seconds - time until reaching the maximum amplitude in the trajectory
-    :param decay: Decay time in seconds - time for reaching the constant sustain amplitude after the maximum amplitude point
-    :param sustainAmp: The final amplitude of the trajectory after the decay time
+    :param attack: Attack time in seconds - time until reaching the maximum amplitude peak in the trajectory
+    :param decay: Decay time in seconds - time until reaching the constant sustain amplitude after the maximum amplitude peak
+    :param sustain_ratio: Sustain value, computed as a ratio with respect to the highest amplitude peak,
+        as the final amplitude value of a trajectory to be kept after the decay time
+    :return:
+        harm_amp_adsr: Modified array of amplitudes of all harmonics, after applying the ADSR envelope
     """
 
     harm_amp_adsr = np.copy(harm_amp)
     attack_frames = round(attack * Fs / Hop_length)
     decay_frames = round(decay * Fs / Hop_length)
 
-    for i in range(traj.shape[1]):
+    for i in range(traj.shape[1]):            # going through all harmonics
 
         first_start_found = 0
 
-        for m in range(traj.shape[0] - 1):
+        for m in range(traj.shape[0] - 1):    # going through all frames
 
             if (m == 0) & (traj[m, i] != 0):
                 traj_start = m
@@ -653,32 +680,42 @@ def adsr_amp(traj, harm_amp, attack, decay, sustain_ratio):
                 traj_end = m
                 if (traj_end - traj_start >= 0) & (traj[traj_start, i] != 0):
 
-                    # the amplitude of the highest peak(after the attack time) is set to the max amplitude within the trajectory
+                    # the amplitude of the highest peak to be reached after the attack time is set to the max amplitude
+                    # found within the currently considered trajectory
                     max_value_amp = np.max(harm_amp[traj_start: traj_end + 1, i])
 
                     # if the trajectory is longer than the attack time
                     if traj_start + attack_frames < traj_end:
+
+                        # amplitude of the frames corresponding to the attack time is linearly interpolated
                         harm_amp_adsr[traj_start: traj_start + attack_frames + 1, i] =\
-                            linear_interpolation(0.1, max_value_amp, attack_frames + 1)
+                            linear_interpolation(0, max_value_amp, attack_frames + 1)
 
                         # if the trajectory is longer than the sum of attack time and decay time
                         if traj_start + attack_frames + decay_frames < traj_end:
+
+                            # amplitude of the frames corresponding to the decay time is linearly interpolated
                             harm_amp_adsr[traj_start + attack_frames + 1: traj_start + attack_frames + decay_frames + 1, i] = \
                                 linear_interpolation(max_value_amp, sustain_ratio * max_value_amp, decay_frames)
+
+                            # amplitude of the frames after the decay time till the end is set to the sustain value
                             harm_amp_adsr[traj_start + attack_frames + decay_frames + 1: traj_end + 1, i] = \
                                 np.ones(traj_end - traj_start - attack_frames - decay_frames) * sustain_ratio \
                                 * max_value_amp
 
+                        # if the trajectory ends before finishing the decay period
                         else:
+
+                            # amplitude of the frames after the attack time till the end is linearly interpolated
                             harm_amp_adsr[traj_start + attack_frames + 1: traj_end + 1, i] =\
                                 linear_interpolation(max_value_amp, sustain_ratio * max_value_amp,
                                                      traj_end - traj_start - attack_frames)
 
-                    # if the trajectory is shorter than the attack time, interpolate the whole trajectory from
-                    # the minimum value to the highest peak
+                    # if the trajectory is shorter than the attack time, interpolate the whole trajectory from 0
+                    # to the highest peak
                     else:
                         harm_amp_adsr[traj_start: traj_end + 1, i] = \
-                            linear_interpolation(0.1, max_value_amp, traj_end - traj_start + 1)
+                            linear_interpolation(0, max_value_amp, traj_end - traj_start + 1)
 
     return harm_amp_adsr
 
@@ -719,32 +756,52 @@ def resynthesis(harm_db, harm_freq, fs, hop_length):
 
 def custom_synthesis(harm_db, harm_freq, harm_orig_db, harm_orig_freq, traj, amplitudes_array, inharm_array, attack,
                                decay, sustain_ampl, fs, hop_length, envelope_adsr):
+    """Synthesize the customarily parameterized sound, made primarily from the arrays corresponding to the fundamental,
+    by setting the relative amplitudes and inharmonicity of each harmonic, as well as applying the ADSR envelope.
+
+        :param harm_db, harm_freq: 2D arrays corresponding to all harmonics through frames
+        :param harm_orig_db, harm__orig_freq: 2D arrays corresponding to all harmonics through frames of the original
+            audio file; here used only for the comparative plots
+        :param traj: The array of trajectories, after deleting short trajectories and smoothening the longer ones
+        :param amplitudes_array: Array of relative amplitudes for all harmonics, w.r.t. the values of the fundamental
+        :param inharm_array: Array of relative frequency deviation for all harmonics, w.r.t. the exact integer
+            multiples of the fundamental
+        :param attack, decay, sustain_ampl: ADSR parameters
+        :return:
+            bankosc: The finally synthesized sound after applying customized parameterization
+        """
 
     harmonic_freq_additive = np.zeros((harm_freq.shape[0], harm_freq.shape[1]))
-    fund_freq = harm_freq[:, 0]
+    fund_freq = harm_freq[:, 0]    # the frequency of the fundamental is kept
 
     harmonic_amp = librosa.db_to_amplitude(harm_db)
     harmonic_amp[harmonic_amp <= 0.0001] = 0
-    fund_amp = harmonic_amp[:, 0]
+    fund_amp = harmonic_amp[:, 0]  # the amplitude of the fundamental is kept
 
     harmonic_amp_additive = np.zeros((harm_db.shape[0], harm_db.shape[1]))
 
-    for i in range(harmonic_amp_additive.shape[1]):
+    # the amplitude and frequency values of each harmonic are set according to the arrays with relative values,
+    # w.r.t to the fundamental
+    for i in range(harmonic_amp_additive.shape[1]):      # for each harmonic
+
+        # amplitude of the i-th harmonic set by multiplying the one of the fundamental with the relative amp array
         harmonic_amp_additive[:, i] = fund_amp * amplitudes_array[i]
         harmonic_freq_additive[:, i] = fund_freq * (i + 1) * (1 + inharm_array[i] * (pow(2, 1/24) - 1))
 
-    if envelope_adsr:
+    if envelope_adsr:     # if ADSR envelope is to be applied
         harmonic_amp_additive = adsr_amp(traj, harmonic_amp_additive, attack, decay, sustain_ampl)
 
+
+    # Representing the trajectories corresponding to the new arrays
     traj_add, traj_add_freq, traj_add_db = build_trajectories(librosa.amplitude_to_db(harmonic_amp_additive),
                                                               harmonic_freq_additive)
-
     min_y, max_y = np.min(harmonic_freq_additive), np.max(harmonic_freq_additive)
-
     title_traj_median = "Fundamental and harmonics after the custom synthesis"
+
     plot_harmonics_intensity(harm_orig_freq, harm_orig_db, traj_add_freq, traj_add_db,
                              title_traj_median, min_y, max_y)
 
+    # Final synthesis
     bankosc = oscillators_bank_synthesis(harmonic_amp_additive, harmonic_freq_additive, fs, hop_length)
 
     return bankosc
@@ -789,12 +846,10 @@ if __name__ == "__main__":  # For now the whole synthesis part doesn't exists ou
     wave_file_creation(bankosc_resynth, Fs, file_path1)
 
 
-
     file_path2 = "..\\synthesized_sound\\Synthesized_" + "custom_example_" + str(example_number) + ".wav"
     bankosc_custom_synth = custom_synthesis(Harmonic_db_filtered, Harmonic_freqMedian, Harmonic_db,
-                                            Harmonic_freqSmoother, trajectories, Amplitudes_array,
-                                            Inharmonicity_array, attack_sec, decay_sec, sustain_amp, Fs, Hop_length,
-                                            envelopeADSR)
+                                            Harmonic_freqSmoother, trajectories, Amplitudes_array, Inharmonicity_array,
+                                            attack_sec, decay_sec, sustain_amp, Fs, Hop_length, envelopeADSR)
 
     # Plotting the original and customarily synthesised audio files in time domain
     plot_synthesis(audio, Fs, bankosc_custom_synth, "Customarily synthesized audio file")
