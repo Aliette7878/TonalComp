@@ -237,7 +237,7 @@ def findHarmonics_blockMethod(xdB, fundamentalList, indextofreq, missingFundSear
     if missingFundSearch:
         Divisor = []
         for n in range(nframes):
-            peakLoc_List = findPeaksScipy(X_db[:, n], f_low / indextofreq)
+            peakLoc_List = findPeaksScipy(xdB[:, n], f_low / indextofreq)
             divisor = real_fundamental(peakLoc_List, fundamentalList[n])
             Divisor.append(divisor)
         DivisorSmoother = scipy.signal.medfilt(Divisor, N_moving_median)
