@@ -761,7 +761,7 @@ def plot_synthesis(audio_orig, f_s, audio_synth, title):
     plt.ylabel("Amplitude")
     plt.xlabel("Time [s]")
 
-    time_synth = np.arange(0, len(audio_synth - 1) / f_s, 1 / f_s)
+    time_synth = np.arange(0, len(audio_synth)) / f_s
 
     plt.subplot(212)
     plt.title(title)
