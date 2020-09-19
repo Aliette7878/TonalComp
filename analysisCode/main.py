@@ -125,6 +125,10 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 
 def plot_stft(x_db, f_s):
+    """ .
+    :param x_db: 2D array of amplitudes in dB of all harmonics through frames
+    :param f_s: sampling frequency
+    """
 
     plt.figure()
     librosa.display.specshow(x_db, y_axis='log', x_axis='time', sr=f_s, cmap='viridis')
@@ -156,6 +160,18 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 # ------------------------------------------ PEAK TRACKING ------------------------------------------
 
 def findPeaksScipy(X, threshold):
+    """ .
+
+    :param X: 2D array of amplitudes in dB of all harmonics through frames
+    :param Harm_freq: 2D array of frequencies in Hz of all harmonics through frames
+    :return:
+        traj_index: 2D array of marked starting points of new trajectories for each of the harmonics. For each frame,
+              traj_index takes values of 1 or 2, where the change of the value represents the start of a new trajectory
+        traj_freq: 2D array of frequencies through frames. The frequency values are written in (2*i)-th or (2*i+1)-th row,
+              according to whether they start a newly formed trajectory or they belong to a previous one
+        traj_db: 2D array of amplitudes in dB through frames. The values are written in (2*i)-th or (2*i+1)-th row,
+              according to whether they start a newly formed trajectory or they belong to a previous one
+    """
     x = np.copy(X)
     x[0:int(threshold)] = np.min(x)       # The peaks of low frequencies are not to be considered for the search
 
@@ -206,6 +222,17 @@ if __name__ == "__main__":  # This prevents the execution of the following code 
 
 # The parabola is given by y(x) = a*(x-p)²+b where y(-1) = alpha, y(0) = beta, y(1) = gamma
 def parabolic_interpolation(alpha, beta, gamma):
+    """ .
+
+    :param alpha: y(-1) = alpha
+    :param beta: y(0) = beta
+    :param gamma: y(1) = gamma
+
+    :return:
+        value: value of the interpolated maximum
+        location : location of the interpolated maximum
+
+    """
     location = 0
     value = beta
     if alpha - 2 * beta + gamma != 0:
@@ -216,6 +243,14 @@ def parabolic_interpolation(alpha, beta, gamma):
 
 # Check if peaks are spaced by the computed fundamental, or by one of its divisors
 def real_fundamental(peakLoc_List, foo):
+    """ .
+
+    :param peakLoc_List: 2D array containing the peaks of one frame
+    :param foo: value of the found fundamental of one frame
+
+    :return:
+        divisor : value of divisor, with foo/divisor = real fundamental
+    """
     divisor = 1
     if len(peakLoc_List)>1:
         gap=peakLoc_List[1]-peakLoc_List[0]
@@ -225,6 +260,18 @@ def real_fundamental(peakLoc_List, foo):
 
 
 def findHarmonics_blockMethod(xdB, fundamentalList, indextofreq, missingFundSearch):
+    """ .
+
+    :param xdB: 2D array of amplitudes in dB of the STFT. Size [number of frames, length of the STFT]
+    :param fundamentalList : list of the fundamental frequencies. 
+    :param indextofreq: value to convert index to frequency.
+    :param missingFundSearch: boolean. If set to true, then the search of a missing fundamental in the spectrum is activated.
+
+    :return:
+        harmonic_freq: 2D array of frequencies of all harmonics through frames. Size [nb_harmonics, nb_frames].
+        harmonic_db: 2D array of amplitudes of all harmonics through frames. Size [nb_harmonics, nb_frames].
+
+    """
 
     nframes = len(fundamentalList)
     # Initialization of storage vectors that include fundamental and harmonics
